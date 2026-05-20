@@ -22,8 +22,8 @@
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/@mediapipe/camera_utils@0.4/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://unpkg.com/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous"></script>
+    <script src="https://gcore.jsdelivr.net/npm/@mediapipe/camera_utils@0.4/camera_utils.js"></script>
+    <script src="https://gcore.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
 </head>
 <body>
 
@@ -243,22 +243,19 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // ==========================================
-        // 核心安全兼容初始化（已适配 unpkg 算力路径）
-        // ==========================================
         function initMediaPipe() {
             const videoElement = document.getElementById('webcam');
             
-            const HandsClass = window.Hands || (window.hands ? window.hands.Hands : null);
-            const CameraClass = window.Camera || (window.camera_utils ? window.camera_utils.Camera : null);
+            // 优化2：全域捕获命名空间，彻底兼容大写、小写和官方打包版挂载方式
+            const HandsClass = window.Hands || (window.hands ? window.hands.Hands : null) || (window.mediapipe ? window.mediapipe.Hands : null);
+            const CameraClass = window.Camera || (window.camera_utils ? window.camera_utils.Camera : null) || (window.mediapipe ? window.mediapipe.Camera : null);
 
             if (!HandsClass || !CameraClass) {
-                throw new Error("MediaPipe 组件未能成功加载，请检查网络或尝试刷新页面。");
+                throw new Error("检测到底层类缺失。请检查 F12 控制台是否包含广告拦截(Blocked)或语法错误(SyntaxError)。");
             }
 
-            // 核心修复：重定向 WASM 与资产请求至 unpkg 高速镜像
             const hands = new HandsClass({
-                locateFile: (file) => `https://unpkg.com/@mediapipe/hands@0.4/${file}`
+                locateFile: (file) => `https://gcore.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
             });
 
             hands.setOptions({
