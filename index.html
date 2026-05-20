@@ -5,124 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0,viewport-fit=cover">
     <title>3D Heart Particle Gallery - Gesture Control</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #050505;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-        /* WebGL 画布 */
-        #webgl-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-        }
-        /* 隐藏的摄像头视频流，用于MediaPipe解析 */
-        #webcam {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 160px;
-            height: 120px;
-            transform: scaleX(-1); /* 镜像翻转符合人类直觉 */
-            border-radius: 8px;
-            border: 2px solid rgba(255, 20, 147, 0.5);
-            z-index: 10;
-            background: #000;
-        }
-        /* UI 顶层覆盖物 */
-        .ui-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 5;
-            pointer-events: none; /* 让鼠标/触摸事件穿透到 Canvas */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 40px;
-        }
-        header {
-            color: #fff;
-            text-shadow: 0 0 10px rgba(255, 20, 147, 0.8);
-        }
-        h1 {
-            font-size: 24px;
-            letter-spacing: 4px;
-            font-weight: 300;
-            color: #ff1493;
-        }
-        p {
-            font-size: 12px;
-            color: #888;
-            margin-top: 5px;
-        }
-        /* 状态指示器 */
-        #status-panel {
-            position: absolute;
-            top: 40px;
-            right: 40px;
-            background: rgba(0,0,0,0.6);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,20,147,0.3);
-            color: #fff;
-            font-size: 12px;
-            pointer-events: auto;
-        }
-        .status-item {
-            margin-bottom: 5px;
-        }
-        .highlight {
-            color: #00ffff;
-            font-weight: bold;
-        }
-        /* 提示弹窗 */
-        #loading-prompt {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #fff;
-            background: rgba(5,5,5,0.85);
-            padding: 30px;
-            border-radius: 12px;
-            border: 1px solid #ff1493;
-            text-align: center;
-            z-index: 100;
-            box-shadow: 0 0 30px rgba(255, 20, 147, 0.4);
-        }
-        .btn {
-            margin-top: 20px;
-            background: transparent;
-            border: 1px solid #ff1493;
-            color: #fff;
-            padding: 10px 25px;
-            border-radius: 20px;
-            cursor: pointer;
-            box-shadow: 0 0 10px rgba(255, 20, 147, 0.2);
-            transition: all 0.3s;
-        }
-        .btn:hover {
-            background: #ff1493;
-            box-shadow: 0 0 20px rgba(255, 20, 147, 0.6);
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: sans-serif; }
+        #webgl-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        #webcam { position: absolute; bottom: 20px; right: 20px; width: 160px; height: 120px; transform: scaleX(-1); border-radius: 8px; border: 2px solid rgba(255, 20, 147, 0.5); z-index: 10; background: #000; }
+        .ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 40px; }
+        header { color: #fff; text-shadow: 0 0 10px rgba(255, 20, 147, 0.8); }
+        h1 { font-size: 24px; letter-spacing: 4px; font-weight: 300; color: #ff1493; }
+        p { font-size: 12px; color: #888; margin-top: 5px; }
+        #status-panel { position: absolute; top: 40px; right: 40px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,20,147,0.3); color: #fff; font-size: 12px; pointer-events: auto; }
+        .status-item { margin-bottom: 5px; }
+        .highlight { color: #00ffff; font-weight: bold; }
+        #loading-prompt { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; background: rgba(5,5,5,0.9); padding: 30px; border-radius: 12px; border: 1px solid #ff1493; text-align: center; z-index: 100; box-shadow: 0 0 30px rgba(255, 20, 147, 0.4); width: 90%; max-width: 400px; }
+        .btn { margin-top: 20px; background: transparent; border: 1px solid #ff1493; color: #fff; padding: 10px 25px; border-radius: 20px; cursor: pointer; box-shadow: 0 0 10px rgba(255, 20, 147, 0.2); transition: all 0.3s; font-size: 14px; }
+        .btn:hover { background: #ff1493; box-shadow: 0 0 20px rgba(255, 20, 147, 0.6); }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@mediapipe/camera_utils@0.4/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -131,8 +32,8 @@
 
     <div id="loading-prompt">
         <h3 style="margin-bottom: 10px;">智能交互爱心粒子画廊</h3>
-        <p style="margin-bottom: 15px;">本程序将调用摄像头进行本地人工智能手势识别，数据不上传，请放心开启。</p>
-        <p style="color: #ff1493;">✊ 握拳：聚合为爱心 | 🖐 张手：魔法爆开 | 🔄 挥手：旋转相机</p>
+        <p style="margin-bottom: 15px; color: #aaa;">本程序需要调用摄像头进行本地人工智能手势识别。</p>
+        <p style="color: #ff1493; font-size: 13px; line-height: 1.6;">✊ 握拳：聚合为爱心<br>🖐 张手：魔法爆开<br>🔄 移动手掌：旋转相机视角</p>
         <button class="btn" id="start-btn">开启魔法体验</button>
     </div>
 
@@ -149,31 +50,22 @@
     </div>
 
     <script>
-        // ==========================================
-        // 1. 全局配置与状态机设计
-        // ==========================================
         const CONFIG = {
-            particleCount: 6000,      // 粒子基底数量
-            cardCount: 40,            // 爱心骨架卡片(照片)数量
-            damping: 0.93,            // 核心阻尼参数（决定爆开时先快后慢的物理质感）
-            originThemeColor: 0xff1493 // 霓虹粉红发光色
+            particleCount: 5000,
+            cardCount: 35,
+            damping: 0.93,
+            originThemeColor: 0xff1493
         };
 
         let scene, camera, renderer;
         let particlesGeometry, particlesMesh;
         let cardsGroup;
-        
-        // 数据存储数组：用于物理动画仿真
-        let particleData = []; // 存储粒子的初始位置、当前位置、速度
-        let cardData = [];     // 存储卡片的外层动力学数据
+        let particleData = [];
+        let cardData = [];
 
-        // 状态机
         const STATES = { GATHER: 0, EXPLODE: 1 };
         let currentSystemState = STATES.GATHER;
 
-        // ==========================================
-        // 2. Three.js 三维场景初始化
-        // ==========================================
         function initThree() {
             const canvas = document.getElementById('webgl-canvas');
             scene = new THREE.Scene();
@@ -186,27 +78,19 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-            // 创建光源
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             scene.add(ambientLight);
             const pointLight = new THREE.PointLight(0xff1493, 2, 100);
             pointLight.position.set(0, 0, 20);
             scene.add(pointLight);
 
-            // 构建3D网格与粒子
             createParticleSystem();
             createCardGallery();
 
-            // 监听窗口缩放
             window.addEventListener('resize', onWindowResize);
         }
 
-        // ==========================================
-        // 3. 数学拓扑核心：爱心方程与形变生成
-        // ==========================================
-        // 三维经纬度转换为三维爱心坐标公式
         function getHeartPoint(t, scale = 1) {
-            // 经典的数学爱心几何方程扩展
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
             return new THREE.Vector3(x * scale * 0.8, y * scale * 0.8, 0);
@@ -216,8 +100,240 @@
             particlesGeometry = new THREE.BufferGeometry();
             const positions = new Float32Array(CONFIG.particleCount * 3);
             const colors = new Float32Array(CONFIG.particleCount * 3);
-
             const colorObj = new THREE.Color(CONFIG.originThemeColor);
 
             for (let i = 0; i < CONFIG.particleCount; i++) {
-                // 计算聚合态
+                const t = (i / CONFIG.particleCount) * Math.PI * 2;
+                const targetPos = getHeartPoint(t, 1.2);
+                targetPos.x += (Math.random() - 0.5) * 4;
+                targetPos.y += (Math.random() - 0.5) * 4;
+                targetPos.z += (Math.random() - 0.5) * 6;
+
+                positions[i*3] = targetPos.x;
+                positions[i*3+1] = targetPos.y;
+                positions[i*3+2] = targetPos.z;
+
+                particleData.push({
+                    gatherPos: targetPos.clone(),
+                    currentPos: targetPos.clone(),
+                    velocity: new THREE.Vector3(0, 0, 0),
+                    explodeDir: new THREE.Vector3((Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40)
+                });
+
+                if(Math.random() > 0.85) {
+                    colors[i*3] = 1.0; colors[i*3+1] = 0.9; colors[i*3+2] = 0.6;
+                } else {
+                    colors[i*3] = colorObj.r + (Math.random() - 0.5) * 0.2;
+                    colors[i*3+1] = colorObj.g;
+                    colors[i*3+2] = colorObj.b + (Math.random() - 0.5) * 0.2;
+                }
+            }
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const pointsMaterial = new THREE.PointsMaterial({
+                size: 0.35,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.85
+            });
+
+            particlesMesh = new THREE.Points(particlesGeometry, pointsMaterial);
+            scene.add(particlesMesh);
+        }
+
+        function createCardGallery() {
+            cardsGroup = new THREE.Group();
+            scene.add(cardsGroup);
+            const geometry = new THREE.BoxGeometry(2, 3, 0.1);
+
+            for (let i = 0; i < CONFIG.cardCount; i++) {
+                const t = (i / CONFIG.cardCount) * Math.PI * 2;
+                const targetPos = getHeartPoint(t, 1.0);
+
+                const material = new THREE.MeshStandardMaterial({
+                    color: 0x221122, emissive: 0xff1493, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0.8
+                });
+
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.copy(targetPos);
+                mesh.lookAt(0, 0, 0);
+                cardsGroup.add(mesh);
+
+                cardData.push({
+                    gatherPos: targetPos.clone(),
+                    gatherRot: mesh.rotation.clone(),
+                    velocity: new THREE.Vector3(0,0,0),
+                    explodeDir: new THREE.Vector3((Math.random()-0.5)*30, (Math.random()-0.5)*30, (Math.random()-0.5)*30),
+                    explodeRot: new THREE.Euler((Math.random()-0.5)*5, (Math.random()-0.5)*5, 0)
+                });
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const posAttr = particlesGeometry.attributes.position;
+
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const data = particleData[i];
+                if (currentSystemState === STATES.EXPLODE) {
+                    data.velocity.addScaledVector(data.explodeDir, 0.08); 
+                    data.velocity.multiplyScalar(CONFIG.damping);
+                    data.currentPos.add(data.velocity);
+                    data.explodeDir.set(0,0,0);
+                } else {
+                    data.currentPos.lerp(data.gatherPos, 0.08);
+                    data.velocity.set(0,0,0);
+                }
+                posAttr.array[i*3] = data.currentPos.x;
+                posAttr.array[i*3+1] = data.currentPos.y;
+                posAttr.array[i*3+2] = data.currentPos.z;
+            }
+            posAttr.needsUpdate = true;
+
+            for (let i = 0; i < CONFIG.cardCount; i++) {
+                const mesh = cardsGroup.children[i];
+                const data = cardData[i];
+                if (currentSystemState === STATES.EXPLODE) {
+                    data.velocity.addScaledVector(data.explodeDir, 0.08);
+                    data.velocity.multiplyScalar(CONFIG.damping);
+                    mesh.position.add(data.velocity);
+                    data.explodeDir.set(0,0,0);
+                    mesh.rotation.x += (data.explodeRot.x - mesh.rotation.x) * 0.05;
+                    mesh.rotation.y += (data.explodeRot.y - mesh.rotation.y) * 0.05;
+                } else {
+                    mesh.position.lerp(data.gatherPos, 0.08);
+                    mesh.rotation.x += (data.gatherRot.x - mesh.rotation.x) * 0.08;
+                    mesh.rotation.y += (data.gatherRot.y - mesh.rotation.y) * 0.08;
+                    mesh.rotation.z += (data.gatherRot.z - mesh.rotation.z) * 0.08;
+                    data.velocity.set(0,0,0);
+                }
+            }
+
+            if(currentSystemState === STATES.GATHER) {
+                scene.rotation.y = Math.sin(Date.now() * 0.0005) * 0.2;
+            }
+            renderer.render(scene, camera);
+        }
+
+        function triggerExplosion() {
+            if(currentSystemState === STATES.GATHER) {
+                currentSystemState = STATES.EXPLODE;
+                document.getElementById('sys-state').innerText = "漫天散落态";
+                for(let i=0; i<CONFIG.particleCount; i++) {
+                    particleData[i].explodeDir.set((Math.random()-0.5)*5, (Math.random()-0.5)*5, (Math.random()-0.5)*5);
+                }
+                for(let i=0; i<CONFIG.cardCount; i++) {
+                    cardData[i].explodeDir.set((Math.random()-0.5)*4, (Math.random()-0.5)*4, (Math.random()-0.5)*4);
+                }
+            }
+        }
+
+        function triggerGather() {
+            if(currentSystemState === STATES.EXPLODE) {
+                currentSystemState = STATES.GATHER;
+                document.getElementById('sys-state').innerText = "完美聚合态";
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ==========================================
+        // 核心安全兼容初始化（已适配 unpkg 算力路径）
+        // ==========================================
+        function initMediaPipe() {
+            const videoElement = document.getElementById('webcam');
+            
+            const HandsClass = window.Hands || (window.hands ? window.hands.Hands : null);
+            const CameraClass = window.Camera || (window.camera_utils ? window.camera_utils.Camera : null);
+
+            if (!HandsClass || !CameraClass) {
+                throw new Error("MediaPipe 组件未能成功加载，请检查网络或尝试刷新页面。");
+            }
+
+            // 核心修复：重定向 WASM 与资产请求至 unpkg 高速镜像
+            const hands = new HandsClass({
+                locateFile: (file) => `https://unpkg.com/@mediapipe/hands@0.4/${file}`
+            });
+
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+
+            hands.onResults(onHandResults);
+
+            const cameraUtils = new CameraClass(videoElement, {
+                onFrame: async () => {
+                    await hands.send({ image: videoElement });
+                },
+                width: 640,
+                height: 480
+            });
+            cameraUtils.start();
+            
+            document.getElementById('sys-state').innerText = "AI视觉识别就绪";
+        }
+
+        function onHandResults(results) {
+            const gestureUI = document.getElementById('gesture-state');
+            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+                gestureUI.innerText = "未检测到手";
+                return;
+            }
+
+            const landmarks = results.multiHandLandmarks[0];
+            const wrist = landmarks[0];       
+            const indexTip = landmarks[8];    
+            const pinkyTip = landmarks[20];   
+
+            const d1 = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y);
+            const d2 = Math.hypot(pinkyTip.x - wrist.x, pinkyTip.y - wrist.y);
+            const openMetric = (d1 + d2) / 2;
+
+            if (currentSystemState === STATES.EXPLODE) {
+                camera.position.x += ((wrist.x - 0.5) * -100 - camera.position.x) * 0.05;
+                camera.position.y += (((wrist.y - 0.5) * -100 + 10) - camera.position.y) * 0.05;
+                camera.lookAt(0,0,0);
+            }
+
+            if (openMetric < 0.25) {
+                gestureUI.innerText = "✊ 握拳 (GATHER)";
+                triggerGather();
+            } else if (openMetric > 0.45) {
+                gestureUI.innerText = "🖐 五指张开 (EXPLODE)";
+                triggerExplosion();
+            } else {
+                gestureUI.innerText = "✋ 挥手引导旋转中...";
+            }
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const sysStateText = document.getElementById('sys-state');
+            try {
+                document.getElementById('loading-prompt').style.display = 'none';
+                
+                sysStateText.innerText = "正在构建 3D 爱心...";
+                initThree();
+                animate();
+                
+                sysStateText.innerText = "正在激活 AI 摄像头...";
+                initMediaPipe();
+                
+            } catch (error) {
+                console.error(error);
+                sysStateText.innerHTML = `<span style="color: #ff3333; font-weight: bold;">初始化失败: ${error.message}</span>`;
+                document.getElementById('loading-prompt').style.display = 'block';
+                alert("抱歉，初始化卡住了！错误追踪: " + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
