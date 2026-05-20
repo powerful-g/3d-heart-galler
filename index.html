@@ -21,9 +21,8 @@
         .btn:hover { background: #ff1493; box-shadow: 0 0 20px rgba(255, 20, 147, 0.6); }
     </style>
 
+    <!-- Three.js 不动，直接同步加载 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://gcore.jsdelivr.net/npm/@mediapipe/camera_utils@0.4/camera_utils.js"></script>
-    <script src="https://gcore.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
 </head>
 <body>
 
@@ -66,6 +65,80 @@
         const STATES = { GATHER: 0, EXPLODE: 1 };
         let currentSystemState = STATES.GATHER;
 
+        // ============== 动态加载脚本（带诊断） ==============
+        function loadScript(url) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.async = false;  // 保持顺序执行
+                script.onload = () => {
+                    console.log(`✅ 脚本加载成功: ${url}`);
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.error(`❌ 脚本加载失败 (网络/解析错误): ${url}`);
+                    reject(new Error(`脚本加载失败: ${url}`));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        async function loadMediaPipeScripts() {
+            // 更换为 unpkg 备用，jsDelivr 可能被某些环境拦截
+            const handsUrl = 'https://unpkg.com/@mediapipe/hands@0.4/hands.js';
+            const cameraUrl = 'https://unpkg.com/@mediapipe/camera_utils@0.4/camera_utils.js';
+
+            console.log('⏬ 开始动态加载 MediaPipe 脚本...');
+            await Promise.all([
+                loadScript(handsUrl).catch(e => console.error(e)),
+                loadScript(cameraUrl).catch(e => console.error(e))
+            ]);
+
+            // 扫描全局变量
+            console.log('🔍 扫描 window 上与 MediaPipe 相关的键...');
+            const relevantKeys = Object.keys(window).filter(key =>
+                key.toLowerCase().includes('hand') ||
+                key.toLowerCase().includes('camera') ||
+                key.toLowerCase().includes('mediapipe')
+            );
+            console.log('相关全局键:', relevantKeys);
+
+            // 尝试多种方式获取类
+            let HandsClass = window.Hands;
+            if (!HandsClass && window.hands && window.hands.Hands) HandsClass = window.hands.Hands;
+            if (!HandsClass && window.mediapipe && window.mediapipe.Hands) HandsClass = window.mediapipe.Hands;
+
+            let CameraClass = window.Camera;
+            if (!CameraClass && window.camera_utils && window.camera_utils.Camera) CameraClass = window.camera_utils.Camera;
+            if (!CameraClass && window.mediapipe && window.mediapipe.Camera) CameraClass = window.mediapipe.Camera;
+
+            if (HandsClass && CameraClass) {
+                console.log('✅ 成功获取 HandsClass 和 CameraClass');
+                return { HandsClass, CameraClass };
+            }
+
+            // 深度诊断
+            console.error('❌ 未找到 MediaPipe 类，详细检查 window.Hands / window.Camera 及子对象...');
+            console.log('window.Hands:', window.Hands);
+            console.log('window.hands:', window.hands);
+            console.log('window.mediapipe:', window.mediapipe);
+            console.log('window.Camera:', window.Camera);
+            console.log('window.camera_utils:', window.camera_utils);
+
+            // 检查是否有其他可能的名字
+            if (window.Hands === undefined && window.Camera === undefined) {
+                console.warn('💡 提示：可能脚本版本不匹配，尝试直接访问 window.Hands 和 window.Camera，但它们都是 undefined。');
+                console.warn('💡 请查看 Network 面板确认两个 JS 文件是否返回了 200 状态码，并且响应是 JavaScript 代码（不是 HTML）。');
+            }
+
+            throw new Error(
+                'MediaPipe 类未挂载到全局。请查看上方控制台输出的相关全局键，' +
+                '并检查 Network 面板中脚本的加载状态。' +
+                '若 Network 显示 200 但脚本未执行，可能是浏览器安全策略或广告拦截器阻止了执行。'
+            );
+        }
+
+        // ============== 3D 场景初始化 ==============
         function initThree() {
             const canvas = document.getElementById('webgl-canvas');
             scene = new THREE.Scene();
@@ -178,7 +251,7 @@
             for (let i = 0; i < CONFIG.particleCount; i++) {
                 const data = particleData[i];
                 if (currentSystemState === STATES.EXPLODE) {
-                    data.velocity.addScaledVector(data.explodeDir, 0.08); 
+                    data.velocity.addScaledVector(data.explodeDir, 0.08);
                     data.velocity.multiplyScalar(CONFIG.damping);
                     data.currentPos.add(data.velocity);
                     data.explodeDir.set(0,0,0);
@@ -243,19 +316,12 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function initMediaPipe() {
+        // ============== MediaPipe 初始化 (接收类) ==============
+        function initMediaPipe(HandsClass, CameraClass) {
             const videoElement = document.getElementById('webcam');
             
-            // 优化2：全域捕获命名空间，彻底兼容大写、小写和官方打包版挂载方式
-            const HandsClass = window.Hands || (window.hands ? window.hands.Hands : null) || (window.mediapipe ? window.mediapipe.Hands : null);
-            const CameraClass = window.Camera || (window.camera_utils ? window.camera_utils.Camera : null) || (window.mediapipe ? window.mediapipe.Camera : null);
-
-            if (!HandsClass || !CameraClass) {
-                throw new Error("检测到底层类缺失。请检查 F12 控制台是否包含广告拦截(Blocked)或语法错误(SyntaxError)。");
-            }
-
             const hands = new HandsClass({
-                locateFile: (file) => `https://gcore.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+                locateFile: (file) => `https://unpkg.com/@mediapipe/hands@0.4/${file}`
             });
 
             hands.setOptions({
@@ -312,23 +378,26 @@
             }
         }
 
-        document.getElementById('start-btn').addEventListener('click', () => {
+        // ============== 启动流程 ==============
+        document.getElementById('start-btn').addEventListener('click', async () => {
             const sysStateText = document.getElementById('sys-state');
             try {
                 document.getElementById('loading-prompt').style.display = 'none';
+                
+                sysStateText.innerText = "正在加载 AI 脚本...";
+                const { HandsClass, CameraClass } = await loadMediaPipeScripts();
                 
                 sysStateText.innerText = "正在构建 3D 爱心...";
                 initThree();
                 animate();
                 
                 sysStateText.innerText = "正在激活 AI 摄像头...";
-                initMediaPipe();
+                initMediaPipe(HandsClass, CameraClass);
                 
             } catch (error) {
-                console.error(error);
+                console.error('❌ 初始化失败:', error);
                 sysStateText.innerHTML = `<span style="color: #ff3333; font-weight: bold;">初始化失败: ${error.message}</span>`;
                 document.getElementById('loading-prompt').style.display = 'block';
-                alert("抱歉，初始化卡住了！错误追踪: " + error.message);
             }
         });
     </script>
