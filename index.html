@@ -21,7 +21,6 @@
         .btn:hover { background: #ff1493; box-shadow: 0 0 20px rgba(255, 20, 147, 0.6); }
     </style>
 
-    <!-- 关键修复：camera_utils 使用 0.3 版本，hands 使用 0.4 版本 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
@@ -51,13 +50,8 @@
     </div>
 
     <script>
-        // 全局错误监控，帮助查看脚本执行错误
         window.addEventListener('error', function(e) {
-            if (e.target && e.target.tagName === 'SCRIPT') {
-                console.error('❌ 脚本加载失败:', e.target.src);
-            } else {
-                console.error('❌ 运行时错误:', e.message, 'at', e.filename, 'line', e.lineno);
-            }
+            console.error('❌ 运行时捕获:', e.message);
         });
 
         const CONFIG = {
@@ -142,11 +136,7 @@
             particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
             const pointsMaterial = new THREE.PointsMaterial({
-                size: 0.35,
-                vertexColors: true,
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                opacity: 0.85
+                size: 0.35, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.85
             });
 
             particlesMesh = new THREE.Points(particlesGeometry, pointsMaterial);
@@ -256,12 +246,11 @@
         function initMediaPipe() {
             const videoElement = document.getElementById('webcam');
             
-            // MediaPipe 类现在应该已经挂载到 window 上（由 script 标签同步加载）
             const HandsClass = window.Hands || (window.hands && window.hands.Hands) || (window.mediapipe && window.mediapipe.Hands);
             const CameraClass = window.Camera || (window.camera_utils && window.camera_utils.Camera) || (window.mediapipe && window.mediapipe.Camera);
 
             if (!HandsClass || !CameraClass) {
-                throw new Error("MediaPipe 类未找到，请刷新重试。若持续出现，请检查控制台是否有加载错误。");
+                throw new Error("MediaPipe 类未找到，请刷新重试。");
             }
 
             const hands = new HandsClass({
@@ -271,7 +260,7 @@
             hands.setOptions({
                 maxNumHands: 1,
                 modelComplexity: 1,
-                minDetectionConfidence: 0.6,
+                minDetectionConfidence: 0.5, // 稍微降低首次捕捉门槛，让检测更顺畅
                 minTrackingConfidence: 0.6
             });
 
@@ -281,14 +270,17 @@
                 onFrame: async () => {
                     await hands.send({ image: videoElement });
                 },
-                width: 640,
-                height: 480
+                width: 480, // 优化视频帧尺寸，大幅降低本地计算延迟
+                height: 360
             });
             cameraUtils.start();
             
             document.getElementById('sys-state').innerText = "AI视觉识别就绪";
         }
 
+        // ==========================================
+        // 🔥 核心重构：自适应手掌尺寸的手势判定算法
+        // ==========================================
         function onHandResults(results) {
             const gestureUI = document.getElementById('gesture-state');
             if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
@@ -297,24 +289,37 @@
             }
 
             const landmarks = results.multiHandLandmarks[0];
-            const wrist = landmarks[0];       
-            const indexTip = landmarks[8];    
-            const pinkyTip = landmarks[20];   
+            const wrist = landmarks[0];       // 手腕
+            const indexTip = landmarks[8];    // 食指尖
+            const pinkyTip = landmarks[20];   // 小指尖
+            const middleKnuckle = landmarks[9]; // 中指指根（手掌核心骨架点）
 
-            const d1 = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y);
-            const d2 = Math.hypot(pinkyTip.x - wrist.x, pinkyTip.y - wrist.y);
+            // 1. 【核心改动】计算用户手掌当前的实时大小（手腕到中指根的距离）
+            // 无论你离镜头近还是远，这个 palmSize 就会按比例变大或变小，作为完美的基准刻度
+            const palmSize = Math.hypot(middleKnuckle.x - wrist.x, middleKnuckle.y - wrist.y);
+
+            // 如果手掌骨骼计算异常，直接退出防错
+            if(palmSize < 0.01) return;
+
+            // 2. 【核心改动】将指尖距离除以手掌基准大小，得到“纯粹的无量纲伸展比例”
+            const d1 = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y) / palmSize;
+            const d2 = Math.hypot(pinkyTip.x - wrist.x, pinkyTip.y - wrist.y) / palmSize;
             const openMetric = (d1 + d2) / 2;
 
+            // 3. 伴随平滑控制视角旋转
             if (currentSystemState === STATES.EXPLODE) {
                 camera.position.x += ((wrist.x - 0.5) * -100 - camera.position.x) * 0.05;
                 camera.position.y += (((wrist.y - 0.5) * -100 + 10) - camera.position.y) * 0.05;
                 camera.lookAt(0,0,0);
             }
 
-            if (openMetric < 0.25) {
+            // 4. 新的科学比例状态机判定
+            // 当五指张开时，手指伸长，指尖到手腕距离通常是手掌自身长度的 1.8 到 2.3 倍
+            // 当握紧拳头时，手指内卷，距离迅速缩短为手掌自身长度的 0.9 到 1.2 倍
+            if (openMetric < 1.3) {
                 gestureUI.innerText = "✊ 握拳 (GATHER)";
                 triggerGather();
-            } else if (openMetric > 0.45) {
+            } else if (openMetric > 1.7) {
                 gestureUI.innerText = "🖐 五指张开 (EXPLODE)";
                 triggerExplosion();
             } else {
@@ -326,18 +331,14 @@
             const sysStateText = document.getElementById('sys-state');
             try {
                 document.getElementById('loading-prompt').style.display = 'none';
-                
                 sysStateText.innerText = "正在构建 3D 爱心...";
                 initThree();
                 animate();
-                
                 sysStateText.innerText = "正在激活 AI 摄像头...";
                 initMediaPipe();
-                
             } catch (error) {
-                console.error('❌ 初始化失败:', error);
+                console.error(error);
                 sysStateText.innerHTML = `<span style="color: #ff3333; font-weight: bold;">初始化失败: ${error.message}</span>`;
-                document.getElementById('loading-prompt').style.display = 'block';
             }
         });
     </script>
