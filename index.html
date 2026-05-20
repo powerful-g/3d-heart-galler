@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0,viewport-fit=cover">
+    <title>3D Heart Particle Gallery - Gesture Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        /* WebGL 画布 */
+        #webgl-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* 隐藏的摄像头视频流，用于MediaPipe解析 */
+        #webcam {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 120px;
+            transform: scaleX(-1); /* 镜像翻转符合人类直觉 */
+            border-radius: 8px;
+            border: 2px solid rgba(255, 20, 147, 0.5);
+            z-index: 10;
+            background: #000;
+        }
+        /* UI 顶层覆盖物 */
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none; /* 让鼠标/触摸事件穿透到 Canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px;
+        }
+        header {
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 20, 147, 0.8);
+        }
+        h1 {
+            font-size: 24px;
+            letter-spacing: 4px;
+            font-weight: 300;
+            color: #ff1493;
+        }
+        p {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        /* 状态指示器 */
+        #status-panel {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            background: rgba(0,0,0,0.6);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,20,147,0.3);
+            color: #fff;
+            font-size: 12px;
+            pointer-events: auto;
+        }
+        .status-item {
+            margin-bottom: 5px;
+        }
+        .highlight {
+            color: #00ffff;
+            font-weight: bold;
+        }
+        /* 提示弹窗 */
+        #loading-prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            background: rgba(5,5,5,0.85);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #ff1493;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 0 30px rgba(255, 20, 147, 0.4);
+        }
+        .btn {
+            margin-top: 20px;
+            background: transparent;
+            border: 1px solid #ff1493;
+            color: #fff;
+            padding: 10px 25px;
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 20, 147, 0.2);
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            background: #ff1493;
+            box-shadow: 0 0 20px rgba(255, 20, 147, 0.6);
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <canvas id="webgl-canvas"></canvas>
+    <video id="webcam" autoplay playsinline></video>
+
+    <div id="loading-prompt">
+        <h3 style="margin-bottom: 10px;">智能交互爱心粒子画廊</h3>
+        <p style="margin-bottom: 15px;">本程序将调用摄像头进行本地人工智能手势识别，数据不上传，请放心开启。</p>
+        <p style="color: #ff1493;">✊ 握拳：聚合为爱心 | 🖐 张手：魔法爆开 | 🔄 挥手：旋转相机</p>
+        <button class="btn" id="start-btn">开启魔法体验</button>
+    </div>
+
+    <div class="ui-overlay">
+        <header>
+            <h1>HEART ART GALLERY</h1>
+            <p>Every particle a memory, rhythm in your hand.</p>
+        </header>
+
+        <div id="status-panel">
+            <div class="status-item">系统状态: <span id="sys-state" class="highlight">等待初始化...</span></div>
+            <div class="status-item">识别手势: <span id="gesture-state" class="highlight">无</span></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 全局配置与状态机设计
+        // ==========================================
+        const CONFIG = {
+            particleCount: 6000,      // 粒子基底数量
+            cardCount: 40,            // 爱心骨架卡片(照片)数量
+            damping: 0.93,            // 核心阻尼参数（决定爆开时先快后慢的物理质感）
+            originThemeColor: 0xff1493 // 霓虹粉红发光色
+        };
+
+        let scene, camera, renderer;
+        let particlesGeometry, particlesMesh;
+        let cardsGroup;
+        
+        // 数据存储数组：用于物理动画仿真
+        let particleData = []; // 存储粒子的初始位置、当前位置、速度
+        let cardData = [];     // 存储卡片的外层动力学数据
+
+        // 状态机
+        const STATES = { GATHER: 0, EXPLODE: 1 };
+        let currentSystemState = STATES.GATHER;
+
+        // ==========================================
+        // 2. Three.js 三维场景初始化
+        // ==========================================
+        function initThree() {
+            const canvas = document.getElementById('webgl-canvas');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050505, 0.015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 50);
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // 创建光源
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xff1493, 2, 100);
+            pointLight.position.set(0, 0, 20);
+            scene.add(pointLight);
+
+            // 构建3D网格与粒子
+            createParticleSystem();
+            createCardGallery();
+
+            // 监听窗口缩放
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // ==========================================
+        // 3. 数学拓扑核心：爱心方程与形变生成
+        // ==========================================
+        // 三维经纬度转换为三维爱心坐标公式
+        function getHeartPoint(t, scale = 1) {
+            // 经典的数学爱心几何方程扩展
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+            return new THREE.Vector3(x * scale * 0.8, y * scale * 0.8, 0);
+        }
+
+        function createParticleSystem() {
+            particlesGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(CONFIG.particleCount * 3);
+            const colors = new Float32Array(CONFIG.particleCount * 3);
+
+            const colorObj = new THREE.Color(CONFIG.originThemeColor);
+
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                // 计算聚合态
