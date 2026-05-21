@@ -1,3 +1,4 @@
+:3D Neon Glow Heart Gallery:index.html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -6,21 +7,22 @@
     <title>3D Heart Particle Gallery - Gesture Control</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: sans-serif; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #030206; font-family: sans-serif; }
         #webgl-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        #webcam { position: absolute; bottom: 20px; right: 20px; width: 160px; height: 120px; transform: scaleX(-1); border-radius: 8px; border: 2px solid rgba(255, 20, 147, 0.5); z-index: 10; background: #000; }
+        #webcam { position: absolute; bottom: 20px; right: 20px; width: 160px; height: 120px; transform: scaleX(-1); border-radius: 8px; border: 2px solid rgba(255, 20, 147, 0.4); z-index: 10; background: #000; opacity: 0.8; }
         .ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 40px; }
-        header { color: #fff; text-shadow: 0 0 10px rgba(255, 20, 147, 0.8); }
-        h1 { font-size: 24px; letter-spacing: 4px; font-weight: 300; color: #ff1493; }
-        p { font-size: 12px; color: #888; margin-top: 5px; }
-        #status-panel { position: absolute; top: 40px; right: 40px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,20,147,0.3); color: #fff; font-size: 12px; pointer-events: auto; }
+        header { color: #fff; text-shadow: 0 0 15px rgba(255, 20, 147, 0.9); }
+        h1 { font-size: 26px; letter-spacing: 5px; font-weight: 300; color: #ff1493; }
+        p { font-size: 12px; color: #aaa; margin-top: 5px; letter-spacing: 1px;}
+        #status-panel { position: absolute; top: 40px; right: 40px; background: rgba(10, 5, 15, 0.8); backdrop-filter: blur(10px); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 20, 147, 0.4); color: #fff; font-size: 12px; pointer-events: auto; box-shadow: 0 0 20px rgba(255, 20, 147, 0.15); }
         .status-item { margin-bottom: 5px; }
-        .highlight { color: #00ffff; font-weight: bold; }
-        #loading-prompt { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; background: rgba(5,5,5,0.9); padding: 30px; border-radius: 12px; border: 1px solid #ff1493; text-align: center; z-index: 100; box-shadow: 0 0 30px rgba(255, 20, 147, 0.4); width: 90%; max-width: 400px; }
-        .btn { margin-top: 20px; background: transparent; border: 1px solid #ff1493; color: #fff; padding: 10px 25px; border-radius: 20px; cursor: pointer; box-shadow: 0 0 10px rgba(255, 20, 147, 0.2); transition: all 0.3s; font-size: 14px; }
-        .btn:hover { background: #ff1493; box-shadow: 0 0 20px rgba(255, 20, 147, 0.6); }
+        .highlight { color: #00ffff; font-weight: bold; text-shadow: 0 0 5px rgba(0, 255, 255, 0.5); }
+        #loading-prompt { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; background: rgba(5,3,8,0.92); backdrop-filter: blur(15px); padding: 40px 30px; border-radius: 16px; border: 1px solid #ff1493; text-align: center; z-index: 100; box-shadow: 0 0 40px rgba(255, 20, 147, 0.5); width: 90%; max-width: 420px; }
+        .btn { margin-top: 25px; background: transparent; border: 1px solid #ff1493; color: #fff; padding: 12px 30px; border-radius: 25px; cursor: pointer; box-shadow: 0 0 15px rgba(255, 20, 147, 0.3); transition: all 0.3s ease; font-size: 14px; letter-spacing: 1px; }
+        .btn:hover { background: #ff1493; box-shadow: 0 0 25px rgba(255, 20, 147, 0.8); transform: scale(1.05); }
     </style>
 
+    <!-- 黄金版本组合 CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
@@ -31,16 +33,16 @@
     <video id="webcam" autoplay playsinline></video>
 
     <div id="loading-prompt">
-        <h3 style="margin-bottom: 10px;">智能交互爱心粒子画廊</h3>
-        <p style="margin-bottom: 15px; color: #aaa;">本程序需要调用摄像头进行本地人工智能手势识别。</p>
-        <p style="color: #ff1493; font-size: 13px; line-height: 1.6;">✊ 握拳：聚合为爱心<br>🖐 张手：魔法爆开<br>🔄 移动手掌：旋转相机视角</p>
+        <h3 style="margin-bottom: 12px; font-weight: 300; font-size: 20px; letter-spacing: 2px;">3D霓虹手势画廊</h3>
+        <p style="margin-bottom: 20px; color: #887; font-size: 13px; line-height: 1.5;">本程序完全在您本地浏览器中进行人工智能手势跟踪，请授权开启摄像头体验交互魔法。</p>
+        <p style="color: #ff1493; font-size: 13px; line-height: 1.8; background: rgba(255,20,147,0.1); padding: 10px; border-radius: 8px;">✊ 握拳：凝聚发光爱心<br>🖐 张手：向四周爆开粒子<br>🔄 挥手：平滑旋转 3D 星空</p>
         <button class="btn" id="start-btn">开启魔法体验</button>
     </div>
 
     <div class="ui-overlay">
         <header>
             <h1>HEART ART GALLERY</h1>
-            <p>Every particle a memory, rhythm in your hand.</p>
+            <p>Interactive 3D Experience — Powered by Computer Vision</p>
         </header>
 
         <div id="status-panel">
@@ -55,25 +57,56 @@
         });
 
         const CONFIG = {
-            particleCount: 5000,
-            cardCount: 35,
-            damping: 0.93,
+            particleCount: 6000,       // 核心爱心粒子
+            ambientCount: 1500,        // 散落漫天发光星团
+            cardCount: 30,             // 旋转画幅卡片
+            damping: 0.94,             // 物理阻尼（先快后慢）
             originThemeColor: 0xff1493
         };
 
         let scene, camera, renderer;
-        let particlesGeometry, particlesMesh;
+        
+        // 粒子系统变量
+        let heartGeometry, heartMesh;
+        let ambientGeometry, ambientMesh;
         let cardsGroup;
-        let particleData = [];
-        let cardData = [];
+        
+        let particleData = []; // 粒子物理仿真数据
+        let ambientData = [];  // 环境星团漂浮数据
+        let cardData = [];     // 浮动卡片物理数据
 
         const STATES = { GATHER: 0, EXPLODE: 1 };
         let currentSystemState = STATES.GATHER;
 
+        // ==========================================
+        // 1. 发光贴图生成器（WebGL 逼真辉光的核心）
+        // ==========================================
+        function createGlowTexture(coreColor, glowColor) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            // 径向渐变：明亮的核心，过渡到半透明的软霓虹外廓
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, coreColor);
+            gradient.addColorStop(0.15, glowColor);
+            gradient.addColorStop(0.4, glowColor.replace('0.9', '0.2').replace('0.8', '0.15')); 
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // ==========================================
+        // 2. Three.js 三维场景搭建
+        // ==========================================
         function initThree() {
             const canvas = document.getElementById('webgl-canvas');
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x050505, 0.015);
+            // 添加深空雾化，强化景深感
+            scene.fog = new THREE.FogExp2(0x030206, 0.008);
 
             camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, 50);
@@ -82,36 +115,53 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            // 环境光 + 两个霓虹色点光源
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
             scene.add(ambientLight);
-            const pointLight = new THREE.PointLight(0xff1493, 2, 100);
-            pointLight.position.set(0, 0, 20);
-            scene.add(pointLight);
 
-            createParticleSystem();
+            const pinkLight = new THREE.PointLight(0xff1493, 3, 100);
+            pinkLight.position.set(0, 10, 15);
+            scene.add(pinkLight);
+
+            const blueLight = new THREE.PointLight(0x00ffff, 2, 80);
+            blueLight.position.set(0, -10, 15);
+            scene.add(blueLight);
+
+            // 动态创建并渲染粒子系统与卡片画廊
+            createHeartParticleSystem();
+            createAmbientStarfield();
             createCardGallery();
 
             window.addEventListener('resize', onWindowResize);
         }
 
+        // ==========================================
+        // 3. 数学拓扑方程：立体心形算法
+        // ==========================================
         function getHeartPoint(t, scale = 1) {
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-            return new THREE.Vector3(x * scale * 0.8, y * scale * 0.8, 0);
+            return new THREE.Vector3(x * scale * 0.8, y * scale * 0.8, (Math.random() - 0.5) * 5);
         }
 
-        function createParticleSystem() {
-            particlesGeometry = new THREE.BufferGeometry();
+        // ==========================================
+        // 4. 构建霓虹发光爱心系统
+        // ==========================================
+        function createHeartParticleSystem() {
+            heartGeometry = new THREE.BufferGeometry();
             const positions = new Float32Array(CONFIG.particleCount * 3);
             const colors = new Float32Array(CONFIG.particleCount * 3);
+            
             const colorObj = new THREE.Color(CONFIG.originThemeColor);
 
             for (let i = 0; i < CONFIG.particleCount; i++) {
                 const t = (i / CONFIG.particleCount) * Math.PI * 2;
-                const targetPos = getHeartPoint(t, 1.2);
-                targetPos.x += (Math.random() - 0.5) * 4;
-                targetPos.y += (Math.random() - 0.5) * 4;
-                targetPos.z += (Math.random() - 0.5) * 6;
+                const targetPos = getHeartPoint(t, 1.25);
+                
+                // 加入高斯随机抖动，使爱心粒子像火焰一样立体厚实
+                targetPos.x += (Math.random() - 0.5) * 2.5;
+                targetPos.y += (Math.random() - 0.5) * 2.5;
+                targetPos.z += (Math.random() - 0.5) * 4.0;
 
                 positions[i*3] = targetPos.x;
                 positions[i*3+1] = targetPos.y;
@@ -121,80 +171,198 @@
                     gatherPos: targetPos.clone(),
                     currentPos: targetPos.clone(),
                     velocity: new THREE.Vector3(0, 0, 0),
-                    explodeDir: new THREE.Vector3((Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40)
+                    explodeDir: new THREE.Vector3(
+                        (Math.random() - 0.5) * 55, 
+                        (Math.random() - 0.5) * 55, 
+                        (Math.random() - 0.5) * 55
+                    )
                 });
 
-                if(Math.random() > 0.85) {
-                    colors[i*3] = 1.0; colors[i*3+1] = 0.9; colors[i*3+2] = 0.6;
+                // 核心粒子和外围光晕颜色混合（粉红 + 少量浅金亮点）
+                if (Math.random() > 0.85) {
+                    colors[i*3] = 1.0; colors[i*3+1] = 0.95; colors[i*3+2] = 0.75; // 金光亮点
                 } else {
-                    colors[i*3] = colorObj.r + (Math.random() - 0.5) * 0.2;
+                    colors[i*3] = colorObj.r + (Math.random() - 0.5) * 0.15;
                     colors[i*3+1] = colorObj.g;
-                    colors[i*3+2] = colorObj.b + (Math.random() - 0.5) * 0.2;
+                    colors[i*3+2] = colorObj.b + (Math.random() - 0.5) * 0.15;
                 }
             }
-            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            heartGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            heartGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // 创建专为爱心定制的霓虹粉红发光贴图
+            const neonHeartTexture = createGlowTexture('#ffffff', 'rgba(255, 20, 147, 0.8)');
 
             const pointsMaterial = new THREE.PointsMaterial({
-                size: 0.35, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.85
+                size: 1.1,                 // 适当放大粒子，使其产生柔和的晕开效果
+                map: neonHeartTexture,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending, // 核心：开启颜色叠加发光
+                transparent: true,
+                opacity: 0.9,
+                depthWrite: false          // 关键：防止粒子半透明边缘切掉后面的像素
             });
 
-            particlesMesh = new THREE.Points(particlesGeometry, pointsMaterial);
-            scene.add(particlesMesh);
+            heartMesh = new THREE.Points(heartGeometry, pointsMaterial);
+            scene.add(heartMesh);
         }
 
+        // ==========================================
+        // 5. 构建环境漫天漂浮星空层（图2的核心升级）
+        // ==========================================
+        function createAmbientStarfield() {
+            ambientGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(CONFIG.ambientCount * 3);
+            const colors = new Float32Array(CONFIG.ambientCount * 3);
+
+            for (let i = 0; i < CONFIG.ambientCount; i++) {
+                // 呈巨大球形壳体随机散落分布
+                const r = 35 + Math.random() * 120;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+
+                const x = r * Math.sin(phi) * Math.cos(theta);
+                const y = r * Math.sin(phi) * Math.sin(theta);
+                const z = r * Math.cos(phi);
+
+                positions[i*3] = x;
+                positions[i*3+1] = y;
+                positions[i*3+2] = z;
+
+                // 暖白色与淡霓虹粉红色粒子混合，还原星空璀璨感
+                if (Math.random() > 0.5) {
+                    colors[i*3] = 0.95; colors[i*3+1] = 0.95; colors[i*3+2] = 1.0; // 冰晶蓝白
+                } else {
+                    colors[i*3] = 1.0; colors[i*3+1] = 0.4; colors[i*3+2] = 0.7;   // 淡粉红
+                }
+
+                ambientData.push({
+                    originalPos: new THREE.Vector3(x, y, z),
+                    seed: Math.random() * 100, // 用于随机波形动画
+                    speed: 0.01 + Math.random() * 0.02
+                });
+            }
+
+            ambientGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            ambientGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // 创建专属的环境星光柔和贴图
+            const neonStarTexture = createGlowTexture('#ffffff', 'rgba(255, 230, 240, 0.6)');
+
+            const starMaterial = new THREE.PointsMaterial({
+                size: 0.8,
+                map: neonStarTexture,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.8,
+                depthWrite: false
+            });
+
+            ambientMesh = new THREE.Points(ambientGeometry, starMaterial);
+            scene.add(ambientMesh);
+        }
+
+        // ==========================================
+        // 6. 构建霓虹线轮廓卡片画幅层
+        // ==========================================
         function createCardGallery() {
             cardsGroup = new THREE.Group();
             scene.add(cardsGroup);
-            const geometry = new THREE.BoxGeometry(2, 3, 0.1);
+
+            // 卡片本体几何体
+            const cardGeo = new THREE.BoxGeometry(2, 3, 0.05);
 
             for (let i = 0; i < CONFIG.cardCount; i++) {
                 const t = (i / CONFIG.cardCount) * Math.PI * 2;
-                const targetPos = getHeartPoint(t, 1.0);
+                const targetPos = getHeartPoint(t, 1.0); // 紧贴内层轨道
 
+                // 玻璃材质卡片
                 const material = new THREE.MeshStandardMaterial({
-                    color: 0x221122, emissive: 0xff1493, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0.8
+                    color: 0x11020d,
+                    emissive: 0xff1493,
+                    emissiveIntensity: 0.5,
+                    roughness: 0.1,
+                    metalness: 0.9,
+                    transparent: true,
+                    opacity: 0.75
                 });
 
-                const mesh = new THREE.Mesh(geometry, material);
+                const mesh = new THREE.Mesh(cardGeo, material);
                 mesh.position.copy(targetPos);
                 mesh.lookAt(0, 0, 0);
+
+                // 【图2深度还原】为卡片套上高亮霓虹外线框，使其轮廓发光
+                const edges = new THREE.EdgesGeometry(cardGeo);
+                const lineMaterial = new THREE.LineBasicMaterial({ 
+                    color: 0xff1493, 
+                    linewidth: 2, 
+                    transparent: true, 
+                    opacity: 0.9 
+                });
+                const lineSegments = new THREE.LineSegments(edges, lineMaterial);
+                mesh.add(lineSegments); // 把亮线框绑定为子对象
+
                 cardsGroup.add(mesh);
 
                 cardData.push({
                     gatherPos: targetPos.clone(),
                     gatherRot: mesh.rotation.clone(),
                     velocity: new THREE.Vector3(0,0,0),
-                    explodeDir: new THREE.Vector3((Math.random()-0.5)*30, (Math.random()-0.5)*30, (Math.random()-0.5)*30),
+                    explodeDir: new THREE.Vector3((Math.random()-0.5)*35, (Math.random()-0.5)*35, (Math.random()-0.5)*35),
                     explodeRot: new THREE.Euler((Math.random()-0.5)*5, (Math.random()-0.5)*5, 0)
                 });
             }
         }
 
+        // ==========================================
+        // 7. 动画驱动与物理仿真
+        // ==========================================
         function animate() {
             requestAnimationFrame(animate);
-            const posAttr = particlesGeometry.attributes.position;
 
+            const heartPosAttr = heartGeometry.attributes.position;
+            const ambientPosAttr = ambientGeometry.attributes.position;
+            const time = Date.now() * 0.001;
+
+            // A. 爱心主体粒子迭代
             for (let i = 0; i < CONFIG.particleCount; i++) {
                 const data = particleData[i];
+
                 if (currentSystemState === STATES.EXPLODE) {
                     data.velocity.addScaledVector(data.explodeDir, 0.08);
-                    data.velocity.multiplyScalar(CONFIG.damping);
+                    data.velocity.multiplyScalar(CONFIG.damping); // 减速阻尼
                     data.currentPos.add(data.velocity);
                     data.explodeDir.set(0,0,0);
                 } else {
-                    data.currentPos.lerp(data.gatherPos, 0.08);
+                    data.currentPos.lerp(data.gatherPos, 0.07);
                     data.velocity.set(0,0,0);
                 }
-                posAttr.array[i*3] = data.currentPos.x;
-                posAttr.array[i*3+1] = data.currentPos.y;
-                posAttr.array[i*3+2] = data.currentPos.z;
-            }
-            posAttr.needsUpdate = true;
 
+                heartPosAttr.array[i*3] = data.currentPos.x;
+                heartPosAttr.array[i*3+1] = data.currentPos.y;
+                heartPosAttr.array[i*3+2] = data.currentPos.z;
+            }
+            heartPosAttr.needsUpdate = true;
+
+            // B. 漫天微光星空层飘流迭代（呈现缓慢的流体呼吸感）
+            for (let i = 0; i < CONFIG.ambientCount; i++) {
+                const data = ambientData[i];
+                // 使用正弦三角函数让星团粒子做平滑的小幅往复漂移
+                const offset = Math.sin(time + data.seed) * 0.03;
+                
+                ambientPosAttr.array[i*3] = data.originalPos.x + offset * 8;
+                ambientPosAttr.array[i*3+1] = data.originalPos.y + offset * 5;
+                ambientPosAttr.array[i*3+2] = data.originalPos.z + Math.cos(time + data.seed) * 0.2;
+            }
+            ambientPosAttr.needsUpdate = true;
+
+            // C. 几何画廊卡片及线框迭代
             for (let i = 0; i < CONFIG.cardCount; i++) {
                 const mesh = cardsGroup.children[i];
                 const data = cardData[i];
+
                 if (currentSystemState === STATES.EXPLODE) {
                     data.velocity.addScaledVector(data.explodeDir, 0.08);
                     data.velocity.multiplyScalar(CONFIG.damping);
@@ -211,18 +379,24 @@
                 }
             }
 
-            if(currentSystemState === STATES.GATHER) {
-                scene.rotation.y = Math.sin(Date.now() * 0.0005) * 0.2;
+            // D. 全局慢速自转，星空和爱心会协同转动，带有丰富的视差层次
+            if (currentSystemState === STATES.GATHER) {
+                scene.rotation.y = Math.sin(time * 0.2) * 0.15;
+                scene.rotation.z = Math.cos(time * 0.15) * 0.05;
             }
+
             renderer.render(scene, camera);
         }
 
+        // ==========================================
+        // 8. 爆发/重聚触发器
+        // ==========================================
         function triggerExplosion() {
             if(currentSystemState === STATES.GATHER) {
                 currentSystemState = STATES.EXPLODE;
                 document.getElementById('sys-state').innerText = "漫天散落态";
                 for(let i=0; i<CONFIG.particleCount; i++) {
-                    particleData[i].explodeDir.set((Math.random()-0.5)*5, (Math.random()-0.5)*5, (Math.random()-0.5)*5);
+                    particleData[i].explodeDir.set((Math.random()-0.5)*6, (Math.random()-0.5)*6, (Math.random()-0.5)*6);
                 }
                 for(let i=0; i<CONFIG.cardCount; i++) {
                     cardData[i].explodeDir.set((Math.random()-0.5)*4, (Math.random()-0.5)*4, (Math.random()-0.5)*4);
@@ -243,6 +417,9 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
+        // ==========================================
+        // 9. 智能手势识别与极速自适应几何算法
+        // ==========================================
         function initMediaPipe() {
             const videoElement = document.getElementById('webcam');
             
@@ -250,7 +427,7 @@
             const CameraClass = window.Camera || (window.camera_utils && window.camera_utils.Camera) || (window.mediapipe && window.mediapipe.Camera);
 
             if (!HandsClass || !CameraClass) {
-                throw new Error("MediaPipe 类未找到，请刷新重试。");
+                throw new Error("检测到本地浏览器缺少 MediaPipe AI 依赖，请尝试重新刷新页面加载。");
             }
 
             const hands = new HandsClass({
@@ -260,8 +437,8 @@
             hands.setOptions({
                 maxNumHands: 1,
                 modelComplexity: 1,
-                minDetectionConfidence: 0.5, // 稍微降低首次捕捉门槛，让检测更顺畅
-                minTrackingConfidence: 0.6
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
             });
 
             hands.onResults(onHandResults);
@@ -270,7 +447,7 @@
                 onFrame: async () => {
                     await hands.send({ image: videoElement });
                 },
-                width: 480, // 优化视频帧尺寸，大幅降低本地计算延迟
+                width: 480,
                 height: 360
             });
             cameraUtils.start();
@@ -278,9 +455,6 @@
             document.getElementById('sys-state').innerText = "AI视觉识别就绪";
         }
 
-        // ==========================================
-        // 🔥 核心重构：自适应手掌尺寸的手势判定算法
-        // ==========================================
         function onHandResults(results) {
             const gestureUI = document.getElementById('gesture-state');
             if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
@@ -289,33 +463,28 @@
             }
 
             const landmarks = results.multiHandLandmarks[0];
-            const wrist = landmarks[0];       // 手腕
-            const indexTip = landmarks[8];    // 食指尖
-            const pinkyTip = landmarks[20];   // 小指尖
-            const middleKnuckle = landmarks[9]; // 中指指根（手掌核心骨架点）
+            const wrist = landmarks[0];       
+            const indexTip = landmarks[8];    
+            const pinkyTip = landmarks[20];   
+            const middleKnuckle = landmarks[9]; 
 
-            // 1. 【核心改动】计算用户手掌当前的实时大小（手腕到中指根的距离）
-            // 无论你离镜头近还是远，这个 palmSize 就会按比例变大或变小，作为完美的基准刻度
+            // 测量手掌基准长度，解决距离摄像头远近不敏锐的问题
             const palmSize = Math.hypot(middleKnuckle.x - wrist.x, middleKnuckle.y - wrist.y);
-
-            // 如果手掌骨骼计算异常，直接退出防错
             if(palmSize < 0.01) return;
 
-            // 2. 【核心改动】将指尖距离除以手掌基准大小，得到“纯粹的无量纲伸展比例”
+            // 比例归一化运算
             const d1 = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y) / palmSize;
             const d2 = Math.hypot(pinkyTip.x - wrist.x, pinkyTip.y - wrist.y) / palmSize;
             const openMetric = (d1 + d2) / 2;
 
-            // 3. 伴随平滑控制视角旋转
+            // 根据手掌在 X 轴上的位移，无缝调节 3D 摄像机，产生华丽的视角微移
             if (currentSystemState === STATES.EXPLODE) {
-                camera.position.x += ((wrist.x - 0.5) * -100 - camera.position.x) * 0.05;
+                camera.position.x += ((wrist.x - 0.5) * -120 - camera.position.x) * 0.05;
                 camera.position.y += (((wrist.y - 0.5) * -100 + 10) - camera.position.y) * 0.05;
                 camera.lookAt(0,0,0);
             }
 
-            // 4. 新的科学比例状态机判定
-            // 当五指张开时，手指伸长，指尖到手腕距离通常是手掌自身长度的 1.8 到 2.3 倍
-            // 当握紧拳头时，手指内卷，距离迅速缩短为手掌自身长度的 0.9 到 1.2 倍
+            // 手势临界区切换
             if (openMetric < 1.3) {
                 gestureUI.innerText = "✊ 握拳 (GATHER)";
                 triggerGather();
@@ -331,14 +500,18 @@
             const sysStateText = document.getElementById('sys-state');
             try {
                 document.getElementById('loading-prompt').style.display = 'none';
-                sysStateText.innerText = "正在构建 3D 爱心...";
+                
+                sysStateText.innerText = "正在构建 3D 梦幻星空...";
                 initThree();
                 animate();
+                
                 sysStateText.innerText = "正在激活 AI 摄像头...";
                 initMediaPipe();
+                
             } catch (error) {
                 console.error(error);
                 sysStateText.innerHTML = `<span style="color: #ff3333; font-weight: bold;">初始化失败: ${error.message}</span>`;
+                document.getElementById('loading-prompt').style.display = 'block';
             }
         });
     </script>
