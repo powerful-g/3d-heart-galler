@@ -1,4 +1,4 @@
-:3D Neon Glow Heart Gallery:index.html
+:3D Uniform Glow Heart Gallery:index.html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -33,8 +33,8 @@
     <video id="webcam" autoplay playsinline></video>
 
     <div id="loading-prompt">
-        <h3 style="margin-bottom: 12px; font-weight: 300; font-size: 20px; letter-spacing: 2px; color: #ffb6c1;">3D梦幻粒子手势画廊</h3>
-        <p style="margin-bottom: 20px; color: #887; font-size: 13px; line-height: 1.5;">本程序完全在您本地浏览器中进行人工智能手势跟踪，请授权开启摄像头体验交互魔法。</p>
+        <h3 style="margin-bottom: 12px; font-weight: 300; font-size: 20px; letter-spacing: 2px; color: #ffb6c1;">3D樱粉粒子手势画廊</h3>
+        <p style="margin-bottom: 20px; color: #887; font-size: 13px; line-height: 1.5;">本程序完全在您本地浏览器中进行人工智能手势追踪，请授权开启摄像头体验交互魔法。</p>
         <p style="color: #ffb6c1; font-size: 13px; line-height: 1.8; background: rgba(255,182,193,0.1); padding: 10px; border-radius: 8px;">✊ 握拳：凝聚淡粉粒子爱心<br>🖐 张手：漫漫星尘爆开发光<br>🔄 移动手掌：平滑自适应视角旋转</p>
         <button class="btn" id="start-btn">开启魔法体验</button>
     </div>
@@ -58,15 +58,16 @@
 
         const CONFIG = {
             particleCount: 5500,       // 核心爱心粒子数量
-            ambientCount: 1600,        // 环境散落发光星尘
-            cardCount: 32,             // 浮动卡片画幅数量
-            damping: 0.94,             // 物理阻尼（先快后慢）
+            ambientCount: 1500,        // 环境散落微光星尘
+            cardCount: 32,             // 浮动相册卡片数量
+            damping: 0.93,             // 完美的物理阻尼系数
             originThemeColor: 0xffb6c1 // 经典优雅淡粉红
         };
 
         let scene, camera, renderer;
         
-        let heartGeometry, heartMesh;
+        // 粒子系统网格（采用双层渲染技术）
+        let heartGeometry, heartMeshCore, heartMeshGlow;
         let ambientGeometry, ambientMesh;
         let cardsGroup;
         
@@ -78,28 +79,22 @@
         let currentSystemState = STATES.GATHER;
 
         // ==========================================
-        // 1. 【核心视觉修复】双层发光贴图生成器
+        // 1. 发光贴图生成器（仅用于次级发光层，淡淡的柔和漫反射）
         // ==========================================
-        function createCrispGlowTexture() {
+        function createSoftGlowTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
             canvas.height = 64;
             const ctx = canvas.getContext('2d');
 
-            // 1. 绘制淡淡的自发辉光层（高透明度、淡白色、范围广，不糊在一起）
+            // 径向渐变：淡白色核心，柔和地过渡到全透明，完全没有任何生硬的死斑
             const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            gradient.addColorStop(0, 'rgba(255, 250, 250, 0.18)'); // 核心淡白微发光
-            gradient.addColorStop(0.35, 'rgba(255, 182, 193, 0.05)'); // 外围极其稀释的粉红晕
+            gradient.addColorStop(0, 'rgba(255, 250, 250, 0.4)');
+            gradient.addColorStop(0.3, 'rgba(255, 182, 193, 0.15)');
             gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 64, 64);
-
-            // 2. 绘制极度硬朗、高亮、锐利的纯白核心点（找回“粒子感”的灵魂！）
-            ctx.beginPath();
-            ctx.arc(32, 32, 1.8, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
-            ctx.fill();
-
             return new THREE.CanvasTexture(canvas);
         }
 
@@ -109,7 +104,7 @@
         function initThree() {
             const canvas = document.getElementById('webgl-canvas');
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x030206, 0.006);
+            scene.fog = new THREE.FogExp2(0x030206, 0.007);
 
             camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, 50);
@@ -118,19 +113,19 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-            // 环境光 + 霓虹色点光源
+            // 环境光 + 经典冷粉与柔金点光源
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
             scene.add(ambientLight);
 
-            const pinkLight = new THREE.PointLight(0xffb6c1, 2.5, 100);
+            const pinkLight = new THREE.PointLight(0xffb6c1, 2.0, 100);
             pinkLight.position.set(0, 15, 20);
             scene.add(pinkLight);
 
-            const goldLight = new THREE.PointLight(0xffe4b5, 1.5, 80);
+            const goldLight = new THREE.PointLight(0xffe4b5, 1.2, 80);
             goldLight.position.set(0, -15, 20);
             scene.add(goldLight);
 
-            // 初始化累积弧长，准备生成无拼接缝隙的心形粒子
+            // 初始化爱心参数化重网格计算（解决接头聚集拥堵）
             initHeartCurveMath();
 
             createHeartParticleSystem();
@@ -149,7 +144,6 @@
         let totalCurveLength = 0;
 
         function rawHeartFormula(t) {
-            // 标准心形方程
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
             return new THREE.Vector3(x, y, 0);
@@ -172,7 +166,7 @@
             }
         }
 
-        // 基于目标比例，二分查找精确位置，输出完全等间距分布的心形坐标
+        // 二分查找等距弧长点，彻底降噪接头部分，让粒子分布完全均匀
         function getUniformHeartPoint(fraction, scale = 1) {
             const targetLen = fraction * totalCurveLength;
             
@@ -190,7 +184,7 @@
                 }
             }
             
-            // 线性插值，弥补分段间隙
+            // 线性插值
             const lengthA = cumulativeLengths[index];
             const lengthB = cumulativeLengths[index + 1] || totalCurveLength;
             const tInterp = (targetLen - lengthA) / (lengthB - lengthA || 1);
@@ -200,15 +194,15 @@
             const finalT = tA + (tB - tA) * tInterp;
             
             const point = rawHeartFormula(finalT);
-            // 乘以缩放系数和三维深度抖动
-            point.multiplyScalar(scale * 0.82);
-            point.z += (Math.random() - 0.5) * 3.5;
+            point.multiplyScalar(scale * 0.81);
+            // 保持原本爱心的三维空间厚度抖动
+            point.z += (Math.random() - 0.5) * 3.8;
             
             return point;
         }
 
         // ==========================================
-        // 4. 构建无接头缝隙的璀璨双色爱心系统
+        // 4. 【特色回归】构建双层无缝璀璨爱心系统
         // ==========================================
         function createHeartParticleSystem() {
             heartGeometry = new THREE.BufferGeometry();
@@ -216,7 +210,7 @@
             const colors = new Float32Array(CONFIG.particleCount * 3);
 
             for (let i = 0; i < CONFIG.particleCount; i++) {
-                // 1. 【数学修复应用】通过弧长占比分配，彻底杜绝上下尖端密集拥堵！
+                // 1. 采用弧长等距点，彻底杜绝接头堆积突兀！
                 const fraction = i / CONFIG.particleCount;
                 const targetPos = getUniformHeartPoint(fraction, 1.25);
 
@@ -235,19 +229,19 @@
                     )
                 });
 
-                // 2. 【图2色系还原】由淡粉红 (70%)、浅奶金 (15%)、和柔丁香紫 (15%) 精妙混色
+                // 2. 完美色系重归：高级淡粉红（75%）+ 晶莹暖金（15%）+ 柔和紫罗兰（10%）的华丽交织
                 const colorObj = new THREE.Color();
                 const rand = Math.random();
 
-                if (rand < 0.70) {
-                    // 优雅高级淡粉红（还原图2经典主色）
-                    colorObj.setHSL(0.95 + Math.random() * 0.03, 0.75 + Math.random() * 0.1, 0.78 + Math.random() * 0.07);
-                } else if (rand < 0.85) {
-                    // 浅白色 / 温暖淡奶金（画龙点睛的亮色粒子）
-                    colorObj.setHSL(0.12 + Math.random() * 0.03, 0.65 + Math.random() * 0.1, 0.82 + Math.random() * 0.06);
+                if (rand < 0.75) {
+                    // 图2最核心好看的淡樱花粉
+                    colorObj.setHSL(0.95 + Math.random() * 0.03, 0.78, 0.78 + Math.random() * 0.05);
+                } else if (rand < 0.90) {
+                    // 画龙点睛的璀璨浅奶金 / 暖白星尘色
+                    colorObj.setHSL(0.12 + Math.random() * 0.03, 0.65, 0.83 + Math.random() * 0.04);
                 } else {
-                    // 柔和丁香紫（增加色系深度与质感）
-                    colorObj.setHSL(0.85 + Math.random() * 0.04, 0.55 + Math.random() * 0.15, 0.80 + Math.random() * 0.05);
+                    // 丰富色彩深度的梦幻罗兰紫
+                    colorObj.setHSL(0.84 + Math.random() * 0.04, 0.55, 0.80 + Math.random() * 0.05);
                 }
 
                 colors[i*3] = colorObj.r;
@@ -258,23 +252,38 @@
             heartGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             heartGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-            // 双层贴图材质
-            const pointsMaterial = new THREE.PointsMaterial({
-                size: 0.52,                 // 极细微缩尺寸，重现硬朗清澈的“粒子感”
-                map: createCrispGlowTexture(),
+            // ==========================================
+            // 💎 核心视觉升级：双层粒子无缝渲染架构 💎
+            // ==========================================
+            
+            // 🌟 第一层：【硬核粒子感】像素核心层（不加贴图，还原原本硬朗爽快的粒子特色！）
+            const coreMaterial = new THREE.PointsMaterial({
+                size: 0.42,                  // 极度清澈的细微像素尺寸
                 vertexColors: true,
                 blending: THREE.AdditiveBlending,
                 transparent: true,
                 opacity: 0.95,
                 depthWrite: false
             });
+            heartMeshCore = new THREE.Points(heartGeometry, coreMaterial);
+            scene.add(heartMeshCore);
 
-            heartMesh = new THREE.Points(heartGeometry, pointsMaterial);
-            scene.add(heartMesh);
+            // 🌟 第二层：【淡淡自发发光】次级晕圈层（使用弱渐变，只散发一层仙气般的浅粉白微光，绝不糊成一团！）
+            const glowMaterial = new THREE.PointsMaterial({
+                size: 2.2,                   // 扩大体积，产生漫反射晕染
+                map: createSoftGlowTexture(),
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.22,               // 极弱的透明度，确保只是“淡淡的自发辉光”
+                depthWrite: false
+            });
+            heartMeshGlow = new THREE.Points(heartGeometry, glowMaterial);
+            scene.add(heartMeshGlow);
         }
 
         // ==========================================
-        // 5. 构建漫天散落的背景高频微光星空
+        // 5. 【漫天星尘重筑】构建晶莹剔透的环境散落粒子
         // ==========================================
         function createAmbientStarfield() {
             ambientGeometry = new THREE.BufferGeometry();
@@ -282,7 +291,7 @@
             const colors = new Float32Array(CONFIG.ambientCount * 3);
 
             for (let i = 0; i < CONFIG.ambientCount; i++) {
-                const r = 40 + Math.random() * 110;
+                const r = 35 + Math.random() * 115;
                 const theta = Math.random() * Math.PI * 2;
                 const phi = Math.acos((Math.random() * 2) - 1);
 
@@ -294,12 +303,12 @@
                 positions[i*3+1] = y;
                 positions[i*3+2] = z;
 
-                // 星尘色系也做相同优雅淡粉白金的配色
+                // 与主爱心星空色调完美匹配的漫天粉白暖金星沙
                 const colorObj = new THREE.Color();
                 if (Math.random() > 0.6) {
-                    colorObj.setHSL(0.12, 0.6, 0.85); // 温暖星白金
+                    colorObj.setHSL(0.12, 0.6, 0.85); // 璀璨暖金白
                 } else {
-                    colorObj.setHSL(0.96, 0.7, 0.82); // 优雅淡樱粉
+                    colorObj.setHSL(0.96, 0.7, 0.82); // 优雅浅樱粉
                 }
 
                 colors[i*3] = colorObj.r;
@@ -309,16 +318,16 @@
                 ambientData.push({
                     originalPos: new THREE.Vector3(x, y, z),
                     seed: Math.random() * 100,
-                    speed: 0.008 + Math.random() * 0.015
+                    speed: 0.008 + Math.random() * 0.012
                 });
             }
 
             ambientGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             ambientGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
+            // 环境星尘使用一模一样的无贴图晶莹像素粒子材质，保证高频细节拉满
             const starMaterial = new THREE.PointsMaterial({
-                size: 0.38,                  // 极细点阵，在背景极低调地呼吸发光
-                map: createCrispGlowTexture(),
+                size: 0.38,
                 vertexColors: true,
                 blending: THREE.AdditiveBlending,
                 transparent: true,
@@ -331,7 +340,7 @@
         }
 
         // ==========================================
-        // 6. 构建霓虹线轮廓相册卡片
+        // 6. 构建霓虹相册卡片
         // ==========================================
         function createCardGallery() {
             cardsGroup = new THREE.Group();
@@ -340,31 +349,31 @@
             const cardGeo = new THREE.BoxGeometry(2, 3, 0.05);
 
             for (let i = 0; i < CONFIG.cardCount; i++) {
-                // 卡片也使用完全等间距心形位置排布
+                // 卡片同步采用等距心形排布，位置极度舒适工整
                 const fraction = i / CONFIG.cardCount;
                 const targetPos = getUniformHeartPoint(fraction, 1.0);
 
                 const material = new THREE.MeshStandardMaterial({
                     color: 0x11020d,
                     emissive: 0xffb6c1,
-                    emissiveIntensity: 0.4,
-                    roughness: 0.15,
-                    metalness: 0.85,
+                    emissiveIntensity: 0.3,
+                    roughness: 0.2,
+                    metalness: 0.8,
                     transparent: true,
-                    opacity: 0.7
+                    opacity: 0.75
                 });
 
                 const mesh = new THREE.Mesh(cardGeo, material);
                 mesh.position.copy(targetPos);
                 mesh.lookAt(0, 0, 0);
 
-                // 外轮廓发光线框
+                // 外轮廓发光边线
                 const edges = new THREE.EdgesGeometry(cardGeo);
                 const lineMaterial = new THREE.LineBasicMaterial({ 
                     color: 0xffb6c1, 
-                    linewidth: 1.5, 
+                    linewidth: 1, 
                     transparent: true, 
-                    opacity: 0.85 
+                    opacity: 0.8 
                 });
                 const lineSegments = new THREE.LineSegments(edges, lineMaterial);
                 mesh.add(lineSegments);
@@ -382,7 +391,7 @@
         }
 
         // ==========================================
-        // 7. 动画主循环渲染
+        // 7. 动画主循环渲染（两层粒子数据无缝同步解算）
         // ==========================================
         function animate() {
             requestAnimationFrame(animate);
@@ -391,7 +400,7 @@
             const ambientPosAttr = ambientGeometry.attributes.position;
             const time = Date.now() * 0.001;
 
-            // A. 主体爱心粒子物理解算
+            // A. 爱心粒子物理解算（两层 Mesh 共享一个 Geometry 数据，GPU 零额外开销！）
             for (let i = 0; i < CONFIG.particleCount; i++) {
                 const data = particleData[i];
 
@@ -411,18 +420,18 @@
             }
             heartPosAttr.needsUpdate = true;
 
-            // B. 星空自主漂浮解算
+            // B. 漫天星团流体漂游解算
             for (let i = 0; i < CONFIG.ambientCount; i++) {
                 const data = ambientData[i];
-                const offset = Math.sin(time + data.seed) * 0.035;
+                const offset = Math.sin(time + data.seed) * 0.03;
                 
-                ambientPosAttr.array[i*3] = data.originalPos.x + offset * 7;
-                ambientPosAttr.array[i*3+1] = data.originalPos.y + offset * 4;
-                ambientPosAttr.array[i*3+2] = data.originalPos.z + Math.cos(time + data.seed) * 0.15;
+                ambientPosAttr.array[i*3] = data.originalPos.x + offset * 8;
+                ambientPosAttr.array[i*3+1] = data.originalPos.y + offset * 5;
+                ambientPosAttr.array[i*3+2] = data.originalPos.z + Math.cos(time + data.seed) * 0.2;
             }
             ambientPosAttr.needsUpdate = true;
 
-            // C. 旋转卡片解算
+            // C. 浮动相簿解算
             for (let i = 0; i < CONFIG.cardCount; i++) {
                 const mesh = cardsGroup.children[i];
                 const data = cardData[i];
@@ -443,7 +452,7 @@
                 }
             }
 
-            // D. 场景平滑慢旋转（结合手势视角变换）
+            // D. 场景慢旋转（带起全星空的华丽视差变换）
             if (currentSystemState === STATES.GATHER) {
                 scene.rotation.y = Math.sin(time * 0.15) * 0.12;
                 scene.rotation.z = Math.cos(time * 0.12) * 0.04;
@@ -482,7 +491,7 @@
         }
 
         // ==========================================
-        // 9. 智能手势识别与自适应手掌运算
+        // 9. 智能手势识别与自适应手掌尺寸算法（最完美版）
         // ==========================================
         function initMediaPipe() {
             const videoElement = document.getElementById('webcam');
@@ -491,7 +500,7 @@
             const CameraClass = window.Camera || (window.camera_utils && window.camera_utils.Camera) || (window.mediapipe && window.mediapipe.Camera);
 
             if (!HandsClass || !CameraClass) {
-                throw new Error("加载底层 AI 依赖超时，请尝试刷新。");
+                throw new Error("加载 AI 数据引擎失败。");
             }
 
             const hands = new HandsClass({
@@ -532,6 +541,7 @@
             const pinkyTip = landmarks[20];   
             const middleKnuckle = landmarks[9]; 
 
+            // 自适应手掌大小测量
             const palmSize = Math.hypot(middleKnuckle.x - wrist.x, middleKnuckle.y - wrist.y);
             if(palmSize < 0.01) return;
 
@@ -539,6 +549,7 @@
             const d2 = Math.hypot(pinkyTip.x - wrist.x, pinkyTip.y - wrist.y) / palmSize;
             const openMetric = (d1 + d2) / 2;
 
+            // 根据手掌位置提供平滑的透视视角调节
             if (currentSystemState === STATES.EXPLODE) {
                 camera.position.x += ((wrist.x - 0.5) * -120 - camera.position.x) * 0.05;
                 camera.position.y += (((wrist.y - 0.5) * -100 + 10) - camera.position.y) * 0.05;
