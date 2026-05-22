@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0,viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=0, viewport-fit=cover">
     <title>3D Heart Particle Gallery - Gesture Control</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -32,7 +32,6 @@
         .btn:hover { background: #ffb6c1; color: #030206; box-shadow: 0 0 25px rgba(255, 182, 193, 0.6); transform: scale(1.05); }
     </style>
 
-    <!-- 黄金版本组合 CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
@@ -67,17 +66,30 @@
         });
 
         const CONFIG = {
-            particleCount: 3000,       // 主体粒子数量精简为 3000，获取最佳的轻盈感与绝对极速性能
+            particleCount: 3000,       // 主体粒子数量为 3000
             ambientCount: 1500,        // 环境散落微光星尘
             cardCount: 18,             // 卡片数量为 18
             ribbonParticleCount: 2600, // 体积云飘带的星尘粒子数量
             damping: 0.93,             // 完美的物理阻尼系数
             originThemeColor: 0xffb6c1, // 经典优雅淡粉红
 
-            // 主体爱心发光/辉光层可调参数：
-            glowIntensity: 0.35,       // 【辉光亮度/不透明度】参数范围：0.0 (无辉光) 到 1.0 (极亮)
-            glowSizeMultiplier: 6.0,   // 将辉光外延扩散倍数由原先的 5.2 大幅拓宽至 6.0 (让圆形原点更加温润朦胧)
-            glowOuterColor: 'rgba(255, 182, 193, 0.25)' // 【辉光贴图的外圈漫反射色彩】
+            // 主体爱心发光/辉光层参数：
+            glowIntensity: 0.35,       // 【辉光亮度/不透明度】
+            glowSizeMultiplier: 6.0,   // 将辉光外延扩散倍数设置为 6.0 (让圆形原点更加温润朦胧)
+            glowOuterColor: 'rgba(255, 182, 193, 0.25)', // 【辉光贴图的外圈漫反射色彩】
+
+            // 悬浮画廊卡片失重运动配置参数：
+            cardFloatSpeed: 1.1,       // 【卡片失重晃动频率/速度】
+            cardFloatRange: 0.28,      // 【卡片上下浮动的最大振幅】
+
+            // 体积云雾飘带粒子 GPU 呼吸起伏配置参数：
+            ribbonMistSpeed: 0.8,      // 【星云粒子起伏波动的呼吸频率】
+            ribbonMistRange: 0.5,      // 【星云粒子空间波动的最大偏离幅度】为 0.5
+
+            // 💓 脉搏心跳核心控制参数区：
+            pulseSpeed: 0.8,           // 【心跳生理波动速率】控制心跳呼吸的跳动快慢
+            pulseMaxRange: 0.08,       // 💡 调整：【心跳膨胀的最大边界】由 0.1 缩减至 0.08 (8%最大位移膨胀)
+            pulsePhaseLag: 0.1         // 【心跳层叠传导波延迟】
         };
 
         let scene, camera, renderer;
@@ -98,11 +110,20 @@
         let pVelocities;       // 当前运动速度平铺数组 (Float32Array)
         let pExplodeDirs;      // 爆发方向分量平铺数组 (Float32Array)
 
+        // 全局预置暂存向量，杜绝垃圾对象实例化，释放爆开瞬间 CPU 压力
+        let _tempVec = new THREE.Vector3();
+
         let ambientData = [];  // 背景星空波动数据
         let cardData = [];     // 浮动相簿物理数据
 
         const STATES = { GATHER: 0, EXPLODE: 1 };
         let currentSystemState = STATES.GATHER;
+
+        // 心脏跳动爆炸淡出平滑范围缓存
+        let activePulseRange = CONFIG.pulseMaxRange;
+
+        // 解决 WebGL 时间戳溢出问题的相对计时起点
+        let startTime = null;
 
         // ==========================================
         // 拖拽控制变量（3D 轨道自适应）
@@ -264,6 +285,7 @@
             return new THREE.Vector3(x, y, 0);
         }
 
+        // 构建等间距采样骨架
         function initHeartCurveMath() {
             let prevPt = rawHeartFormula(0);
             curvePoints.push(prevPt);
@@ -310,7 +332,7 @@
         }
 
         // ==========================================
-        // 4. 【核心修复】3D 立体心形体积填充算法
+        // 4. 3D 立体心形体积填充算法
         // ==========================================
         function get3DHeartVolumePoint(scale = 1.0) {
             const fraction = Math.random();
@@ -335,7 +357,10 @@
             const maxDepth = 12 * Math.sqrt(1.0 - r * r); 
             const z = (Math.random() - 0.5) * maxDepth * scale;
             
-            return new THREE.Vector3(x, y, z);
+            return {
+                pos: new THREE.Vector3(x, y, z),
+                depth: r // 返回每个粒子在 3D 主体中的径向坐标深度（外层为 1.0，核心为 0.0）
+            };
         }
 
         // ==========================================
@@ -346,6 +371,7 @@
             const positions = new Float32Array(CONFIG.particleCount * 3);
             const colors = new Float32Array(CONFIG.particleCount * 3);
             const sizes = new Float32Array(CONFIG.particleCount); 
+            const depths = new Float32Array(CONFIG.particleCount); // 新建深度属性数组，注入 GPU
 
             // 初始化物理扁平加速一维状态缓存
             pGatherPositions = new Float32Array(CONFIG.particleCount * 3);
@@ -353,14 +379,15 @@
             pExplodeDirs = new Float32Array(CONFIG.particleCount * 3);
 
             for (let i = 0; i < CONFIG.particleCount; i++) {
-                const targetPos = get3DHeartVolumePoint(1.2);
+                const heartDataObj = get3DHeartVolumePoint(1.2);
+                const targetPos = heartDataObj.pos;
+                const rFactor = heartDataObj.depth; 
                 const i3 = i * 3;
 
                 positions[i3] = targetPos.x;
                 positions[i3+1] = targetPos.y;
                 positions[i3+2] = targetPos.z;
 
-                // 备份至极速一维扁平物理状态缓存，完全避开 Expensive 对象属性开销
                 pGatherPositions[i3] = targetPos.x;
                 pGatherPositions[i3+1] = targetPos.y;
                 pGatherPositions[i3+2] = targetPos.z;
@@ -377,8 +404,7 @@
                 } else if (rand < 0.85) {
                     colorObj.setHSL(0.10 + Math.random() * 0.03, 0.75, 0.80 + Math.random() * 0.05);
                 } else {
-                    // 已按您的要求：将原本深紫蓝色粒子彻底重写为晶莹温润的纯白色！
-                    colorObj.setRGB(1.0, 1.0, 1.0);
+                    colorObj.setRGB(1.0, 1.0, 1.0); // 纯白高亮核心
                 }
 
                 colors[i3] = colorObj.r;
@@ -387,27 +413,61 @@
 
                 const sizeRand = Math.random();
                 if (sizeRand < 0.15) {
-                    // 尺寸微调放大 0.42 -> 0.48 保证虽然粒子总数减少了1000，但视觉体量 100% 一致饱满
                     sizes[i] = 0.68 + Math.random() * 0.32; 
                 } else if (sizeRand < 0.50) {
                     sizes[i] = 0.42 + Math.random() * 0.22; 
                 } else {
                     sizes[i] = 0.22 + Math.random() * 0.15; 
                 }
+
+                depths[i] = rFactor; 
             }
 
             heartGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             heartGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             heartGeometry.setAttribute('pSize', new THREE.BufferAttribute(sizes, 1)); 
+            heartGeometry.setAttribute('aDepth', new THREE.BufferAttribute(depths, 1)); // 写入 WebGL Vertex Buffer
 
-            // 🌟 第一层：【硬核像素粒子】核心层 (💡 修复：无需额外声明 attribute vec3 color;，Three.js 注入机制会直接使用)
+            // 🌟 第一层：【硬核像素粒子】核心层 (GPU 顶点着色器级 3D squash 弹性心脏收缩舒张动画)
             const coreVertexShader = `
+                uniform float uTime;
+                uniform float uPulseSpeed;
+                uniform float uPulseMaxRange;
+                uniform float uPhaseLag;
+                attribute float aDepth;
                 attribute float pSize;
                 varying vec3 vColor;
+
+                float getPulse(float customTime, float speed) {
+                    float t = mod(customTime * speed, 6.28318530718);
+                    float lub = pow(max(0.0, sin(t * 2.0)), 8.0);
+                    float dub = pow(max(0.0, sin(t * 2.0 - 0.7)), 6.0) * 0.35;
+                    return lub + dub;
+                }
+
                 void main() {
                     vColor = color; 
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vec3 pos = position;
+
+                    // 【深度时滞传导波】：由核心层先开始搏动，随后按 phaseLag 比例传导向外扩散
+                    float localTime = uTime - (1.0 - aDepth) * uPhaseLag;
+                    float pulse = getPulse(localTime, uPulseSpeed);
+
+                    // 【线性深度膨胀界限】：内层核收缩幅度最小（40%），外层边缘扩张最广（100%）
+                    float localMaxRange = uPulseMaxRange * (0.4 + 0.6 * aDepth);
+
+                    float scaleX = 1.0 + pulse * localMaxRange;
+                    float scaleY = 1.0 + pulse * localMaxRange * 0.85; // 垂直向肌肉收缩微挤压
+                    float scaleZ = 1.0 + pulse * localMaxRange * 1.10; // 3D深度强化膨胀张力
+
+                    pos.x *= scaleX;
+                    pos.y *= scaleY;
+                    pos.z *= scaleZ;
+
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                     gl_PointSize = pSize * (300.0 / -mvPosition.z); 
+                    gl_PointSize *= (1.0 + pulse * 0.15); // 粒子大小随脉冲强度同步收缩 15%
+
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `;
@@ -416,32 +476,68 @@
                 void main() {
                     vec2 cxy = 2.0 * gl_PointCoord - 1.0;
                     if (dot(cxy, cxy) > 1.0) {
-                        discard; // 💡 剪裁多余直角像素，构建完美圆形原点
+                        discard; // 剪裁直角多余像素，渲染球形原点
                     }
                     gl_FragColor = vec4(vColor, 0.95); 
                 }
             `;
             const coreMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uPulseSpeed: { value: CONFIG.pulseSpeed },
+                    uPulseMaxRange: { value: CONFIG.pulseMaxRange },
+                    uPhaseLag: { value: CONFIG.pulsePhaseLag }
+                },
                 vertexShader: coreVertexShader,
                 fragmentShader: coreFragmentShader,
                 transparent: true,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
-                vertexColors: true // 自动注入 color 属性，避免 redefinition 错误
+                vertexColors: true
             });
             heartMeshCore = new THREE.Points(heartGeometry, coreMaterial);
             mainGroup.add(heartMeshCore); 
 
-            // 🌟 第二层：【自发发光气场】薄雾光晕层 
-            // 💡 重点：Uniform 传入 CONFIG.glowSizeMultiplier 与 CONFIG.glowIntensity 方便后续微调
+            // 🌟 第二层：【自发发光气场】薄雾光晕层
             const glowVertexShader = `
+                uniform float uTime;
+                uniform float uPulseSpeed;
+                uniform float uPulseMaxRange;
+                uniform float uPhaseLag;
                 uniform float uGlowSizeMultiplier;
+                attribute float aDepth;
                 attribute float pSize;
                 varying vec3 vColor;
+
+                float getPulse(float customTime, float speed) {
+                    float t = mod(customTime * speed, 6.28318530718);
+                    float lub = pow(max(0.0, sin(t * 2.0)), 8.0);
+                    float dub = pow(max(0.0, sin(t * 2.0 - 0.7)), 6.0) * 0.35;
+                    return lub + dub;
+                }
+
                 void main() {
                     vColor = color;
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vec3 pos = position;
+
+                    float localTime = uTime - (1.0 - aDepth) * uPhaseLag;
+                    float pulse = getPulse(localTime, uPulseSpeed);
+
+                    float localMaxRange = uPulseMaxRange * (0.4 + 0.6 * aDepth);
+
+                    float scaleX = 1.0 + pulse * localMaxRange;
+                    float scaleY = 1.0 + pulse * localMaxRange * 0.85;
+                    float scaleZ = 1.0 + pulse * localMaxRange * 1.10;
+
+                    pos.x *= scaleX;
+                    pos.y *= scaleY;
+                    pos.z *= scaleZ;
+
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                     gl_PointSize = pSize * uGlowSizeMultiplier * (300.0 / -mvPosition.z); 
+                    // 💡 发光层气场随心跳最高爆发放大 40%
+                    gl_PointSize *= (1.0 + pulse * 0.40); 
+
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `;
@@ -457,11 +553,15 @@
             const glowMaterial = new THREE.ShaderMaterial({
                 uniforms: {
                     pointTexture: { value: createSoftGlowTexture() },
-                    uGlowIntensity: { value: CONFIG.glowIntensity },          // 💡 注入亮度参数
-                    uGlowSizeMultiplier: { value: CONFIG.glowSizeMultiplier }  // 💡 注入尺寸乘数参数
+                    uGlowIntensity: { value: CONFIG.glowIntensity },          
+                    uGlowSizeMultiplier: { value: CONFIG.glowSizeMultiplier }, 
+                    uTime: { value: 0 },
+                    uPulseSpeed: { value: CONFIG.pulseSpeed },
+                    uPulseMaxRange: { value: CONFIG.pulseMaxRange },
+                    uPhaseLag: { value: CONFIG.pulsePhaseLag }
                 },
                 vertexShader: glowVertexShader,
-                fragmentShader: glowFragmentShader, // 💡 修复：此处原本引用了尚未初始化的 glowMaterial 属性，直接指向对应字符串以修复致命 ReferenceError 冲突
+                fragmentShader: glowFragmentShader,
                 transparent: true,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
@@ -517,7 +617,6 @@
             ambientGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             ambientGeometry.setAttribute('pSize', new THREE.BufferAttribute(sizes, 1));
 
-            // 🌟 背景星空材质
             const starVertexShader = `
                 attribute float pSize;
                 varying vec3 vColor;
@@ -589,31 +688,27 @@
                 opacity: 0.95
             });
 
-            // 3D 盒子 6 面材质分配数组: [右, 左, 上, 下, 前(+Z), 后(-Z)]
             const cardMaterials = [
                 sideMaterial, // right
                 sideMaterial, // left
                 sideMaterial, // top
                 sideMaterial, // bottom
-                frontMaterial, // front (正面透光粉金)
-                backMaterial  // back (背面发光 Logo，在 3D 自转中向外层展示)
+                frontMaterial, // front 
+                backMaterial  // back 
             ];
 
             for (let i = 0; i < CONFIG.cardCount; i++) {
                 const angle = (i / CONFIG.cardCount) * Math.PI * 2;
-                // 将卡片环绕轨道半径从 16.5 调宽至 18.0，起伏波浪高度拉满至 4.0
                 const targetPos = new THREE.Vector3(
                     Math.cos(angle) * 18.0,
                     Math.sin(angle * 2) * 4.0, 
                     Math.sin(angle) * 18.0
                 );
 
-                // 使用多面材质数组初始化 Mesh
                 const mesh = new THREE.Mesh(cardGeo, cardMaterials);
                 mesh.position.copy(targetPos);
                 mesh.lookAt(0, 0, 0);
 
-                // 霓虹外边框框
                 const edges = new THREE.EdgesGeometry(cardGeo);
                 const lineMaterial = new THREE.LineBasicMaterial({ 
                     color: 0xffb6c1, 
@@ -639,25 +734,21 @@
         // ==========================================
         // 💡 7.5 构建环绕体积星云（Volume Cloud Ribbon）
         // ==========================================
-        // 💡 修复：移除之前混杂合并时意外残留的 Mesh 顶点封盖代码、旧材质及未定义的 vertices / uvs 变量引用冲突
         function createGlowRibbonCloud() {
             const geometry = new THREE.BufferGeometry();
             const positions = new Float32Array(CONFIG.ribbonParticleCount * 3);
             const colors = new Float32Array(CONFIG.ribbonParticleCount * 3);
             const sizes = new Float32Array(CONFIG.ribbonParticleCount);
 
-            // 颜色渐变自定义：#c356ac ➔ #b083a4 ➔ #fff6fe ➔ #ddd7c6
             const color1 = new THREE.Color(0xc356ac); // #c356ac 丁香紫
             const color2 = new THREE.Color(0xb083a4); // #b083a4 玫瑰粉
             const color3 = new THREE.Color(0xfff6fe); // #fff6fe 粉白
-            const color4 = new THREE.Color(0xddd7c6); // #ddd7c6 暖灰/奶灰
+            const color4 = new THREE.Color(0x0a030c); // #ddd7c6 暖灰
 
             for (let i = 0; i < CONFIG.ribbonParticleCount; i++) {
-                // 在参数方程上均匀采样一条无拼接中缝的 3D 线段轨道
                 const fraction = i / CONFIG.ribbonParticleCount;
                 const angle = fraction * Math.PI * 2;
                 
-                // 基础轨道中心坐标
                 const baseX = Math.cos(angle) * 18.0;
                 const baseY = Math.sin(angle * 2) * 4.0;
                 const baseZ = Math.sin(angle) * 18.0;
@@ -665,7 +756,6 @@
                 const theta = Math.random() * Math.PI * 2;
                 const phi = Math.acos((Math.random() * 2) - 1);
                 
-                // 高斯弥散散射半径改回上一版的 2.2，让云轨更凝聚、精细
                 const dist = Math.pow(Math.random(), 1.5) * 2.2; 
 
                 const dx = dist * Math.sin(phi) * Math.cos(theta);
@@ -676,7 +766,6 @@
                 positions[i * 3 + 1] = baseY + dy;
                 positions[i * 3 + 2] = baseZ + dz;
 
-                // 四色渐变插值体系（0.0 ➔ 1.0 无缝闭环循环，过渡极其平滑舒适）
                 const colorObj = new THREE.Color();
                 if (fraction < 0.25) {
                     colorObj.lerpColors(color1, color2, fraction * 4.0);
@@ -692,7 +781,6 @@
                 colors[i * 3 + 1] = colorObj.g;
                 colors[i * 3 + 2] = colorObj.b;
 
-                // 粒子大小
                 sizes[i] = 1.8 + Math.random() * 2.5;
             }
 
@@ -700,13 +788,21 @@
             geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             geometry.setAttribute('pSize', new THREE.BufferAttribute(sizes, 1));
 
-            // 构建着色器材质
+            // GPU 呼吸极光飘带
             const ribbonVertexShader = `
+                uniform float uTime;
+                uniform float uMistSpeed;
+                uniform float uMistRange;
                 attribute float pSize;
                 varying vec3 vColor;
                 void main() {
                     vColor = color; 
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vec3 pos = position;
+                    pos.x += sin(uTime * uMistSpeed + position.y * 0.1) * uMistRange;
+                    pos.y += cos(uTime * uMistSpeed * 0.9 + position.x * 0.15) * uMistRange;
+                    pos.z += sin(uTime * uMistSpeed * 1.1 + position.z * 0.1) * uMistRange;
+                    
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0); 
                     gl_PointSize = pSize * (300.0 / -mvPosition.z); 
                     gl_Position = projectionMatrix * mvPosition;
                 }
@@ -716,14 +812,16 @@
                 varying vec3 vColor;
                 void main() {
                     vec4 texColor = texture2D(pointTexture, gl_PointCoord);
-                    // 亮度精准控制：0.32 不透明度加算发光，呈现极其通透轻盈、无生硬边缘的唯美体积云
                     gl_FragColor = vec4(vColor, 0.32) * texColor;
                 }
             `;
 
             const ribbonMaterial = new THREE.ShaderMaterial({
                 uniforms: {
-                    pointTexture: { value: createSoftGlowTexture() } 
+                    pointTexture: { value: createSoftGlowTexture() },
+                    uTime: { value: 0 },
+                    uMistSpeed: { value: CONFIG.ribbonMistSpeed },
+                    uMistRange: { value: CONFIG.ribbonMistRange }
                 },
                 vertexShader: ribbonVertexShader,
                 fragmentShader: ribbonFragmentShader,
@@ -763,7 +861,7 @@
                 targetRotationY += deltaX * 0.007;
                 targetRotationX += deltaY * 0.007;
                 
-                // 垂直俯仰角限制由原来的 45度 锁死限制调整为最精准、不穿帮的 30度（Math.PI / 6.0）
+                // 俯仰角度锁死 30 度
                 targetRotationX = Math.max(-Math.PI / 6.0, Math.min(Math.PI / 6.0, targetRotationX));
 
                 previousPointerPosition = currentPos;
@@ -783,7 +881,7 @@
         }
 
         // ==========================================
-        // 9. 动画渲染自适应主循环 (💡 性能巨变：基于一维扁平缓存直接计算，避免一切 Vector3 重GC开销)
+        // 9. 动画渲染自适应主循环 
         // ==========================================
         function animate() {
             requestAnimationFrame(animate);
@@ -791,38 +889,35 @@
             const heartPosAttr = heartGeometry.attributes.position;
             const posArr = heartPosAttr.array;
             const ambientPosAttr = ambientGeometry.attributes.position;
-            const time = Date.now() * 0.001;
+
+            if (startTime === null) {
+                startTime = Date.now() * 0.001;
+            }
+            const relativeTime = (Date.now() * 0.001) - startTime;
 
             // A. 爱心主体粒子物理解算
             if (currentSystemState === STATES.EXPLODE) {
-                // 爆炸动画计算：直接操作 Float32Array 浮点数，避开 Vector3 实例化和方法引用开销
                 for (let i = 0; i < CONFIG.particleCount; i++) {
                     const i3 = i * 3;
-                    // 速度分量叠加爆炸偏置力：vel += explodeDir * 0.08
                     pVelocities[i3]   += pExplodeDirs[i3] * 0.08;
                     pVelocities[i3+1] += pExplodeDirs[i3+1] * 0.08;
                     pVelocities[i3+2] += pExplodeDirs[i3+2] * 0.08;
 
-                    // 速度阻尼衰减：vel *= damping
                     pVelocities[i3]   *= CONFIG.damping;
                     pVelocities[i3+1] *= CONFIG.damping;
                     pVelocities[i3+2] *= CONFIG.damping;
 
-                    // 粒子移动位置直写：pos += vel
                     posArr[i3]   += pVelocities[i3];
                     posArr[i3+1] += pVelocities[i3+1];
                     posArr[i3+2] += pVelocities[i3+2];
 
-                    // 排斥力归零（只在触发第一帧施加瞬间外张推力）
                     pExplodeDirs[i3]   = 0;
                     pExplodeDirs[i3+1] = 0;
                     pExplodeDirs[i3+2] = 0;
                 }
             } else {
-                // 💡 聚合动画计算：直接线性差值，避免调用 .lerp()，全速运行
                 for (let i = 0; i < CONFIG.particleCount; i++) {
                     const i3 = i * 3;
-                    // 极速 LERP：pos += (gatherPos - pos) * 0.07
                     posArr[i3]   += (pGatherPositions[i3]   - posArr[i3])   * 0.07;
                     posArr[i3+1] += (pGatherPositions[i3+1] - posArr[i3+1]) * 0.07;
                     posArr[i3+2] += (pGatherPositions[i3+2] - posArr[i3+2]) * 0.07;
@@ -838,12 +933,12 @@
             const ambientArr = ambientPosAttr.array;
             for (let i = 0; i < CONFIG.ambientCount; i++) {
                 const data = ambientData[i];
-                const offset = Math.sin(time + data.seed) * 0.03;
+                const offset = Math.sin(relativeTime + data.seed) * 0.03;
                 const i3 = i * 3;
                 
                 ambientArr[i3]   = data.originalPos.x + offset * 8.0;
                 ambientArr[i3+1] = data.originalPos.y + offset * 5.0;
-                ambientArr[i3+2] = data.originalPos.z + Math.cos(time + data.seed) * 0.2;
+                ambientArr[i3+2] = data.originalPos.z + Math.cos(relativeTime + data.seed) * 0.2;
             }
             ambientPosAttr.needsUpdate = true;
 
@@ -860,12 +955,35 @@
                     mesh.rotation.x += (data.explodeRot.x - mesh.rotation.x) * 0.05;
                     mesh.rotation.y += (data.explodeRot.y - mesh.rotation.y) * 0.05;
                 } else {
-                    mesh.position.lerp(data.gatherPos, 0.08);
+                    _tempVec.copy(data.gatherPos);
+                    _tempVec.y += Math.sin(relativeTime * CONFIG.cardFloatSpeed + i * 0.4) * CONFIG.cardFloatRange;
+                    _tempVec.x += Math.cos(relativeTime * CONFIG.cardFloatSpeed * 0.8 + i * 0.5) * CONFIG.cardFloatRange * 0.4;
+                    mesh.position.lerp(_tempVec, 0.08);
+
                     mesh.rotation.x += (data.gatherRot.x - mesh.rotation.x) * 0.08;
                     mesh.rotation.y += (data.gatherRot.y - mesh.rotation.y) * 0.08;
                     mesh.rotation.z += (data.gatherRot.z - mesh.rotation.z) * 0.08;
                     data.velocity.set(0,0,0);
                 }
+            }
+
+            // 爆开融合控制
+            let targetMaxRange = (currentSystemState === STATES.EXPLODE) ? 0.0 : CONFIG.pulseMaxRange;
+            activePulseRange += (targetMaxRange - activePulseRange) * 0.08;
+
+            // 传递计时驱动着色器
+            if (heartMeshCore && heartMeshCore.material.uniforms) {
+                heartMeshCore.material.uniforms.uTime.value = relativeTime;
+                heartMeshCore.material.uniforms.uPulseMaxRange.value = activePulseRange;
+            }
+            if (heartMeshGlow && heartMeshGlow.material.uniforms) {
+                heartMeshGlow.material.uniforms.uTime.value = relativeTime;
+                heartMeshGlow.material.uniforms.uPulseMaxRange.value = activePulseRange;
+            }
+
+            // 驱动体积云雾粒子 GPU 起伏
+            if (ribbonMesh && ribbonMesh.material.uniforms) {
+                ribbonMesh.material.uniforms.uTime.value = relativeTime;
             }
 
             // D. 平滑的 3D 双轴缓动阻尼
@@ -878,8 +996,8 @@
 
             // F. 全局相机慢速晃动
             if (currentSystemState === STATES.GATHER) {
-                scene.rotation.y = Math.sin(time * 0.06) * 0.05;
-                scene.rotation.z = Math.cos(time * 0.05) * 0.015;
+                scene.rotation.y = Math.sin(relativeTime * 0.06) * 0.05;
+                scene.rotation.z = Math.cos(relativeTime * 0.05) * 0.015;
             }
 
             renderer.render(scene, camera);
